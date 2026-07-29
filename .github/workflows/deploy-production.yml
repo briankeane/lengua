@@ -43,25 +43,36 @@ jobs:
       - run: touch ./server/.env
       - run: docker compose run client npm test
 
-  check-deploy:
+  # Two independent gates so the image can be built/published before Render is
+  # wired up (the bootstrap the Blueprint needs): image build waits on GHCR creds,
+  # the Render deploy waits on RENDER_API_KEY.
+  check-secrets:
     runs-on: ubuntu-latest
     outputs:
-      enabled: ${{ steps.check.outputs.enabled }}
+      ghcr: ${{ steps.check.outputs.ghcr }}
+      render: ${{ steps.check.outputs.render }}
     steps:
       - id: check
-        run: |
-          if [ -n "$RENDER_API_KEY" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::RENDER_API_KEY not configured, skipping deploy"
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-          fi
         env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          if [ -n "$GHCR_TOKEN" ]; then
+            echo "ghcr=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::GHCR_TOKEN not configured, skipping image build"
+            echo "ghcr=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -n "$RENDER_API_KEY" ]; then
+            echo "render=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::RENDER_API_KEY not configured, skipping Render deploy"
+            echo "render=false" >> "$GITHUB_OUTPUT"
+          fi
 
   build-and-push-image:
-    if: needs.check-deploy.outputs.enabled == 'true'
-    needs: [build-and-test, lint-server, lint-client, test-client, check-deploy]
+    if: needs.check-secrets.outputs.ghcr == 'true'
+    needs: [build-and-test, lint-server, lint-client, test-client, check-secrets]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -78,8 +89,8 @@ jobs:
           docker push "$IMAGE:${{ github.sha }}"
 
   deploy-to-render:
-    if: needs.check-deploy.outputs.enabled == 'true'
-    needs: [build-and-push-image, check-deploy]
+    if: needs.check-secrets.outputs.render == 'true'
+    needs: [build-and-push-image, check-secrets]
     runs-on: ubuntu-latest
     steps:
       - name: Deploy production services on Render

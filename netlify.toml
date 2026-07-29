@@ -1,0 +1,24 @@
+# Netlify build config for the React (Vite) client.
+#
+# The client lives in /client (monorepo). `base` makes Netlify cd there before
+# installing/building, so `command` and `publish` are resolved relative to it:
+# publish "dist" -> client/dist.
+[build]
+  base = "client"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # Match the client's engines pin (client/package.json) so Netlify builds on the
+  # same Node the app is developed and containerized against.
+  NODE_VERSION = "22.15.0"
+  # The client reaches the API only through this var (src/Services/apiClient.ts).
+  # Production API is the Render service declared in render.yaml (api.lengua-app.com).
+  VITE_SERVER_BASE_URL = "https://api.lengua-app.com"
+
+# React Router is a client-side SPA: every path must serve index.html so deep
+# links / refreshes on a route (e.g. /dashboard) don't 404 on Netlify's CDN.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

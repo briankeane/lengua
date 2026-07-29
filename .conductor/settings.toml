@@ -1,0 +1,26 @@
+# Shared, committed Conductor defaults for this repo. Takes effect for teammates
+# only after it is merged to the default branch on the remote. Personal overrides
+# go in the (gitignored) .conductor/settings.local.toml.
+"$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
+
+[scripts]
+# Copies .env files from examples, allocates workspace ports from CONDUCTOR_PORT
+# (client=PORT, server=PORT+2, postgres=PORT+5), then builds and starts the
+# Docker Compose stack detached. Safe to run concurrently: COMPOSE_PROJECT_NAME
+# is derived per-workspace so containers, networks, and volumes are isolated.
+setup = "./scripts/conductor-setup.sh"
+
+# Tear down this workspace's stack and drop its Postgres volume on archive.
+# Scoped to this workspace's COMPOSE_PROJECT_NAME, so it never touches others.
+archive = "docker compose down -v --remove-orphans"
+
+# Each workspace gets its own port block and Compose project, so stacks can run
+# side by side.
+run_mode = "concurrent"
+
+[scripts.run.dev]
+# Attaches to the already-running stack and streams logs. Ports come from the
+# workspace .env written by setup.
+command = "docker compose up"
+default = true
+icon = "play"

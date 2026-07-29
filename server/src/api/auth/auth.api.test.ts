@@ -205,6 +205,22 @@ describe('Auth API', function () {
       assert.equal(count, 1);
     });
 
+    it('rejects when the email is already linked to a different Google account', async function () {
+      await User.create({
+        email: 'taken@example.com',
+        firstName: 'Taken',
+        googleId: 'sub-existing',
+      });
+
+      stubGoogle(basePayload({ email: 'taken@example.com', sub: 'sub-different' }));
+
+      const res = await request(app).post('/v1/auth/google').send({ code: 'auth-code' });
+
+      assert.equal(res.status, 401);
+      const user = await User.findOne({ where: { email: 'taken@example.com' } });
+      assert.equal(user?.googleId, 'sub-existing');
+    });
+
     it('returns 401 when the email is not verified', async function () {
       stubGoogle(basePayload({ email_verified: false }));
 

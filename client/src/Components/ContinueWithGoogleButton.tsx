@@ -28,6 +28,7 @@ function GoogleGlyph() {
 export default function ContinueWithGoogleButton() {
   const { signInWithGoogle } = useAuth();
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const login = useGoogleLogin({
     flow: 'auth-code',
@@ -37,14 +38,26 @@ export default function ContinueWithGoogleButton() {
         await signInWithGoogle(code);
       } catch {
         setError('Sign-in failed. Please try again.');
+        setSubmitting(false);
       }
     },
-    onError: () => setError('Sign-in failed. Please try again.'),
+    onError: () => {
+      setError('Sign-in failed. Please try again.');
+      setSubmitting(false);
+    },
   });
 
   return (
     <>
-      <button type="button" className="google-btn" onClick={() => login()}>
+      <button
+        type="button"
+        className="google-btn"
+        disabled={submitting}
+        onClick={() => {
+          setSubmitting(true);
+          login();
+        }}
+      >
         <GoogleGlyph />
         Continue with Google
       </button>

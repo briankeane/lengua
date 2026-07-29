@@ -1,5 +1,6 @@
 import * as bcrypt from 'bcrypt';
 import { OAuth2Client, type TokenPayload } from 'google-auth-library';
+import { UniqueConstraintError } from 'sequelize';
 import config from '../../config/config';
 import User from '../../db/models/user.model';
 import { AuthenticationError, ConflictError, ValidationError } from '../../utils/errors';
@@ -106,6 +107,9 @@ async function upsertGoogleUser(payload: TokenPayload): Promise<User> {
 
   const byEmail = await User.findOne({ where: { email } });
   if (byEmail) {
+    if (byEmail.googleId && byEmail.googleId !== sub) {
+      throw new AuthenticationError('This email is already linked to a different Google account');
+    }
     await byEmail.update({
       googleId: sub,
       verifiedEmail: byEmail.verifiedEmail ?? email,
@@ -114,12 +118,26 @@ async function upsertGoogleUser(payload: TokenPayload): Promise<User> {
     return byEmail;
   }
 
-  return User.create({
-    googleId: sub,
-    email,
-    firstName: payload.given_name ?? email.split('@')[0],
-    lastName: payload.family_name ?? '',
-    verifiedEmail: email,
-    profileImageUrl: payload.picture,
-  });
+  try {
+    return await User.create({
+      googleId: sub,
+      email,
+      firstName: payload.given_name ?? email.split('@')[0],
+      lastName: payload.family_name ?? '',
+      verifiedEmail: email,
+      profileImageUrl: payload.picture,
+    });
+  } catch (err) {
+    // Concurrent first sign-in for the same sub/email can lose the create race;
+    // the winner already made the row, so re-fetch it deterministically.
+    if (err instanceof UniqueConstraintError) {
+      const existing =
+        (await User.findOne({ where: { googleId: sub } })) ??
+        (await User.findOne({ where: { email } }));
+      if (existing) {
+        return existing;
+      }
+    }
+    throw err;
+  }
 }

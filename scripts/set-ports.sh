@@ -56,7 +56,13 @@ update_env_var() {
   local value=$3
 
   if grep -q "^${var}=" "$file" 2>/dev/null; then
-    sed -i '' "s|^${var}=.*|${var}=${value}|" "$file"
+    # Avoid `sed -i` — its in-place flag differs between BSD/macOS (`-i ''`)
+    # and GNU/Linux (`-i`). A temp file works identically on both.
+    local tmp
+    tmp=$(mktemp)
+    sed "s|^${var}=.*|${var}=${value}|" "$file" > "$tmp"
+    cat "$tmp" > "$file"
+    rm -f "$tmp"
   else
     echo "${var}=${value}" >> "$file"
   fi

@@ -135,6 +135,11 @@ async function upsertGoogleUser(payload: TokenPayload): Promise<User> {
         (await User.findOne({ where: { googleId: sub } })) ??
         (await User.findOne({ where: { email } }));
       if (existing) {
+        if (existing.googleId && existing.googleId !== sub) {
+          throw new AuthenticationError(
+            'This email is already linked to a different Google account',
+          );
+        }
         return existing;
       }
     }

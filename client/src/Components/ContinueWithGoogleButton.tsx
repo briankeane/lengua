@@ -45,6 +45,7 @@ export default function ContinueWithGoogleButton() {
       setError('Sign-in failed. Please try again.');
       setSubmitting(false);
     },
+    onNonOAuthError: () => setSubmitting(false),
   });
 
   return (

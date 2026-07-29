@@ -124,95 +124,112 @@ describe('Auth API', function () {
 
   describe('POST /v1/auth/google', function () {
     const originalGoogleClientId = config.GOOGLE_CLIENT_ID;
+    const originalGoogleClientSecret = config.GOOGLE_CLIENT_SECRET;
 
     beforeEach(function () {
       config.GOOGLE_CLIENT_ID = 'test-google-client-id';
+      config.GOOGLE_CLIENT_SECRET = 'test-google-client-secret';
     });
 
     afterEach(function () {
       config.GOOGLE_CLIENT_ID = originalGoogleClientId;
+      config.GOOGLE_CLIENT_SECRET = originalGoogleClientSecret;
       sinon.restore();
     });
 
-    it('creates a new user from Google token', async function () {
-      sinon.stub(OAuth2Client.prototype, 'verifyIdToken').resolves(
-        mockTicket({
-          email: 'google@example.com',
-          email_verified: true,
-          given_name: 'Google',
-          family_name: 'User',
-          picture: 'https://example.com/photo.jpg',
-          sub: 'google-user-id-123',
-          aud: 'test-google-client-id',
-          exp: Math.floor(Date.now() / 1000) + 3600,
-          iat: Math.floor(Date.now() / 1000),
-          iss: 'accounts.google.com',
-        }),
-      );
+    function stubGoogle(payload: TokenPayload) {
+      sinon
+        .stub(OAuth2Client.prototype, 'getToken')
+        .resolves({ tokens: { id_token: 'fake-id-token' } } as never);
+      sinon.stub(OAuth2Client.prototype, 'verifyIdToken').resolves(mockTicket(payload));
+    }
 
-      const res = await request(app)
-        .post('/v1/auth/google')
-        .send({ idToken: 'valid-google-token' });
+    function basePayload(overrides: Partial<TokenPayload> = {}): TokenPayload {
+      return {
+        email: 'google@example.com',
+        email_verified: true,
+        given_name: 'Google',
+        family_name: 'User',
+        picture: 'https://example.com/photo.jpg',
+        sub: 'google-user-id-123',
+        aud: 'test-google-client-id',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        iat: Math.floor(Date.now() / 1000),
+        iss: 'accounts.google.com',
+        ...overrides,
+      };
+    }
+
+    it('creates a new user from an auth code and stores googleId', async function () {
+      stubGoogle(basePayload());
+
+      const res = await request(app).post('/v1/auth/google').send({ code: 'auth-code' });
 
       assert.equal(res.status, 200);
       assert.exists(res.body.token);
       assert.equal(res.body.user.email, 'google@example.com');
       assert.equal(res.body.user.firstName, 'Google');
-      assert.equal(res.body.user.lastName, 'User');
+
+      const user = await User.findOne({ where: { email: 'google@example.com' } });
+      assert.equal(user?.googleId, 'google-user-id-123');
     });
 
-    it('logs in existing user with matching email', async function () {
+    it('matches an existing user by googleId (sub)', async function () {
       await User.create({
-        email: 'existing@example.com',
-        firstName: 'Existing',
-        lastName: 'User',
+        email: 'old@example.com',
+        firstName: 'Old',
+        googleId: 'google-user-id-123',
       });
 
-      sinon.stub(OAuth2Client.prototype, 'verifyIdToken').resolves(
-        mockTicket({
-          email: 'existing@example.com',
-          email_verified: true,
-          given_name: 'Existing',
-          family_name: 'User',
-          sub: 'google-user-id-456',
-          aud: 'test-google-client-id',
-          exp: Math.floor(Date.now() / 1000) + 3600,
-          iat: Math.floor(Date.now() / 1000),
-          iss: 'accounts.google.com',
-        }),
-      );
+      stubGoogle(basePayload({ email: 'new-address@example.com' }));
 
-      const res = await request(app)
-        .post('/v1/auth/google')
-        .send({ idToken: 'valid-google-token' });
+      const res = await request(app).post('/v1/auth/google').send({ code: 'auth-code' });
 
       assert.equal(res.status, 200);
-      assert.exists(res.body.token);
-      assert.equal(res.body.user.email, 'existing@example.com');
+      assert.equal(res.body.user.email, 'old@example.com');
+      const count = await User.count();
+      assert.equal(count, 1);
+    });
 
-      const users = await User.findAll({
-        where: { email: 'existing@example.com' },
-      });
-      assert.equal(users.length, 1);
+    it('backfills googleId on an existing email-matched user', async function () {
+      await User.create({ email: 'google@example.com', firstName: 'Existing' });
+
+      stubGoogle(basePayload());
+
+      const res = await request(app).post('/v1/auth/google').send({ code: 'auth-code' });
+
+      assert.equal(res.status, 200);
+      const user = await User.findOne({ where: { email: 'google@example.com' } });
+      assert.equal(user?.googleId, 'google-user-id-123');
+      const count = await User.count();
+      assert.equal(count, 1);
+    });
+
+    it('returns 401 when the email is not verified', async function () {
+      stubGoogle(basePayload({ email_verified: false }));
+
+      const res = await request(app).post('/v1/auth/google').send({ code: 'auth-code' });
+
+      assert.equal(res.status, 401);
+    });
+
+    it('returns 401 when the code exchange fails', async function () {
+      sinon.stub(OAuth2Client.prototype, 'getToken').rejects(new Error('invalid_grant'));
+
+      const res = await request(app).post('/v1/auth/google').send({ code: 'bad-code' });
+
+      assert.equal(res.status, 401);
     });
 
     it('returns 400 if GOOGLE_CLIENT_ID is not set', async function () {
       config.GOOGLE_CLIENT_ID = undefined;
 
-      const res = await request(app).post('/v1/auth/google').send({ idToken: 'some-token' });
+      const res = await request(app).post('/v1/auth/google').send({ code: 'auth-code' });
 
       assert.equal(res.status, 400);
     });
 
-    it('returns 401 for invalid token', async function () {
-      sinon.stub(OAuth2Client.prototype, 'verifyIdToken').rejects(new Error('Invalid token'));
-
-      const res = await request(app).post('/v1/auth/google').send({ idToken: 'invalid-token' });
-
-      assert.equal(res.status, 401);
-    });
-
-    it('returns 400 if idToken is missing', async function () {
+    it('returns 400 if code is missing', async function () {
       const res = await request(app).post('/v1/auth/google').send({});
 
       assert.equal(res.status, 400);

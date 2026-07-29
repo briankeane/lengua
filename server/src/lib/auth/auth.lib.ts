@@ -1,5 +1,5 @@
 import * as bcrypt from 'bcrypt';
-import { OAuth2Client } from 'google-auth-library';
+import { OAuth2Client, type TokenPayload } from 'google-auth-library';
 import config from '../../config/config';
 import User from '../../db/models/user.model';
 import { AuthenticationError, ConflictError, ValidationError } from '../../utils/errors';
@@ -56,47 +56,70 @@ export async function login({
   return { user, token };
 }
 
-export async function googleSignIn({
-  idToken,
+export async function googleSignInWithCode({
+  code,
 }: {
-  idToken: string;
+  code: string;
 }): Promise<{ user: User; token: string }> {
-  if (!config.GOOGLE_CLIENT_ID) {
+  if (!config.GOOGLE_CLIENT_ID || !config.GOOGLE_CLIENT_SECRET) {
     throw new ValidationError('Google sign-in is not configured');
   }
 
-  const client = new OAuth2Client(config.GOOGLE_CLIENT_ID);
-  let payload;
+  const client = new OAuth2Client(
+    config.GOOGLE_CLIENT_ID,
+    config.GOOGLE_CLIENT_SECRET,
+    'postmessage',
+  );
+
+  let payload: TokenPayload | undefined;
   try {
+    const { tokens } = await client.getToken(code);
+    if (!tokens.id_token) {
+      throw new Error('No id_token returned from Google');
+    }
     const ticket = await client.verifyIdToken({
-      idToken,
+      idToken: tokens.id_token,
       audience: config.GOOGLE_CLIENT_ID,
     });
     payload = ticket.getPayload();
   } catch {
-    throw new AuthenticationError('Invalid Google ID token');
+    throw new AuthenticationError('Google authentication failed');
   }
 
-  if (!payload || !payload.email) {
-    throw new AuthenticationError('Invalid Google ID token');
+  if (!payload || !payload.sub || !payload.email || payload.email_verified !== true) {
+    throw new AuthenticationError('Google authentication failed');
   }
 
-  let user = await User.findOne({ where: { email: payload.email } });
-
-  if (user) {
-    if (!user.verifiedEmail && payload.email_verified) {
-      await user.update({ verifiedEmail: payload.email });
-    }
-  } else {
-    user = await User.create({
-      email: payload.email,
-      firstName: payload.given_name ?? payload.email.split('@')[0],
-      lastName: payload.family_name ?? '',
-      verifiedEmail: payload.email_verified ? payload.email : undefined,
-      profileImageUrl: payload.picture,
-    });
-  }
-
+  const user = await upsertGoogleUser(payload);
   const token = await generateToken(user);
   return { user, token };
+}
+
+async function upsertGoogleUser(payload: TokenPayload): Promise<User> {
+  const sub = payload.sub as string;
+  const email = payload.email as string;
+
+  const bySub = await User.findOne({ where: { googleId: sub } });
+  if (bySub) {
+    return bySub;
+  }
+
+  const byEmail = await User.findOne({ where: { email } });
+  if (byEmail) {
+    await byEmail.update({
+      googleId: sub,
+      verifiedEmail: byEmail.verifiedEmail ?? email,
+      profileImageUrl: byEmail.profileImageUrl ?? payload.picture,
+    });
+    return byEmail;
+  }
+
+  return User.create({
+    googleId: sub,
+    email,
+    firstName: payload.given_name ?? email.split('@')[0],
+    lastName: payload.family_name ?? '',
+    verifiedEmail: email,
+    profileImageUrl: payload.picture,
+  });
 }

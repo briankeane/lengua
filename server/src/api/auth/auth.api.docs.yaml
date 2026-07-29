@@ -93,8 +93,10 @@ paths:
         - Authentication
       summary: Sign in with Google
       description: >
-        Exchange a Google ID token for a JWT. Creates a new user if one
-        does not exist. Only available when GOOGLE_CLIENT_ID is configured.
+        Exchange a Google OAuth authorization code for a JWT. The server
+        exchanges the code with Google, verifies the returned ID token, and
+        creates a new user if one does not exist. Only available when
+        GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are configured.
       requestBody:
         required: true
         content:
@@ -102,11 +104,11 @@ paths:
             schema:
               type: object
               required:
-                - idToken
+                - code
               properties:
-                idToken:
+                code:
                   type: string
-                  description: Google ID token from client-side sign-in
+                  description: Google OAuth authorization code from the client
       responses:
         '200':
           description: Authentication successful
@@ -120,9 +122,9 @@ paths:
                   token:
                     type: string
         '400':
-          description: Google sign-in not configured or missing idToken
+          description: Google sign-in not configured or missing code
         '401':
-          description: Invalid Google ID token
+          description: Google authentication failed
 
 components:
   schemas:

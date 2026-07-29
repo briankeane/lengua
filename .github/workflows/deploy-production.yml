@@ -43,44 +43,40 @@ jobs:
       - run: touch ./server/.env
       - run: docker compose run client npm test
 
-  # Two independent gates so the image can be built/published before Render is
-  # wired up (the bootstrap the Blueprint needs): image build waits on GHCR creds,
-  # the Render deploy waits on RENDER_API_KEY.
-  check-secrets:
+  # The Render deploy waits on RENDER_API_KEY (secrets can't be read in a job `if`,
+  # so this job surfaces its presence as an output). The image build below does NOT
+  # gate on this — it always runs on push to main so the :production image exists in
+  # GHCR before Render is configured (what the first Blueprint sync needs).
+  check-render:
     runs-on: ubuntu-latest
     outputs:
-      ghcr: ${{ steps.check.outputs.ghcr }}
-      render: ${{ steps.check.outputs.render }}
+      enabled: ${{ steps.check.outputs.enabled }}
     steps:
       - id: check
         env:
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
-          if [ -n "$GHCR_TOKEN" ]; then
-            echo "ghcr=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::GHCR_TOKEN not configured, skipping image build"
-            echo "ghcr=false" >> "$GITHUB_OUTPUT"
-          fi
           if [ -n "$RENDER_API_KEY" ]; then
-            echo "render=true" >> "$GITHUB_OUTPUT"
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "::notice::RENDER_API_KEY not configured, skipping Render deploy"
-            echo "render=false" >> "$GITHUB_OUTPUT"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
           fi
 
   build-and-push-image:
-    if: needs.check-secrets.outputs.ghcr == 'true'
-    needs: [build-and-test, lint-server, lint-client, test-client, check-secrets]
+    needs: [build-and-test, lint-server, lint-client, test-client]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
+      # Use the built-in GITHUB_TOKEN (auto-scoped to this repo, expires per-run) —
+      # no personal PAT needed to push to GHCR. The `packages: write` permission above
+      # is what authorizes it. Render pulls the image separately (make the package
+      # public or give Render a read-only credential).
       - name: Log in to GHCR
-        run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io --username "${{ secrets.GHCR_USERNAME }}" --password-stdin
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
       - name: Build production image
         run: docker build -t "$IMAGE:production" -t "$IMAGE:${{ github.sha }}" -f server/Dockerfile.production server
       - name: Push images to GHCR
@@ -89,8 +85,8 @@ jobs:
           docker push "$IMAGE:${{ github.sha }}"
 
   deploy-to-render:
-    if: needs.check-secrets.outputs.render == 'true'
-    needs: [build-and-push-image, check-secrets]
+    if: needs.check-render.outputs.enabled == 'true'
+    needs: [build-and-push-image, check-render]
     runs-on: ubuntu-latest
     steps:
       - name: Deploy production services on Render

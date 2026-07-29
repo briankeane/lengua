@@ -241,30 +241,27 @@ The Blueprint references the `:production` image tag, and Render verifies image 
 when it creates image-backed services — so the image and its pull access must exist
 **before** the first Blueprint sync.
 
-1. **Add GHCR push credentials as GitHub repo secrets** (Settings → Secrets and
-   variables → Actions):
-   - `GHCR_USERNAME` — `briankeane`
-   - `GHCR_TOKEN` — a GitHub Personal Access Token with `write:packages` scope
-2. **Push `main` once** so the workflow builds and pushes the first
-   `ghcr.io/briankeane/lengua:production` image. (The Render deploy steps skip
-   themselves until `RENDER_API_KEY` exists.)
-3. **Give Render pull access to the image** — either:
+1. **Push `main` once** so the workflow builds and pushes the first
+   `ghcr.io/briankeane/lengua:production` image. The build authenticates to GHCR with
+   the built-in `GITHUB_TOKEN` (no personal PAT required), and always runs on `main`;
+   the Render deploy step skips itself until `RENDER_API_KEY` exists.
+2. **Give Render pull access to the image** — either:
    - make the GHCR package **public** (GitHub → your profile → Packages → `lengua` →
      Package settings → Change visibility → Public), **or**
    - create a Render **registry credential** for GHCR (Render → Account Settings →
      Registry Credentials) and attach it to the image services when creating them.
-4. **Create the `production` env var group** in the Render dashboard with:
+3. **Create the `production` env var group** in the Render dashboard with:
    - `JWT_SECRET` — a strong secret
    - (add `REDIS_URL` later if/when you enable the BullMQ queue)
 
    `DATABASE_URL`, `NODE_ENV`, and `PORT` are **not** set here — the Blueprint wires
    `DATABASE_URL` from the managed database and sets `NODE_ENV`/`PORT` inline.
-5. **Create the Blueprint** — Render Dashboard → **Blueprints** → **New Blueprint
+4. **Create the Blueprint** — Render Dashboard → **Blueprints** → **New Blueprint
    Instance** → connect this repo and select `render.yaml`. Render provisions the
    `lengua-db` Postgres, `production-server`, and `production-worker`. (If the image
    is private, select the registry credential when prompted.)
-6. **Note the two service IDs** (the `srv-xxxxx` value in each service's Settings URL).
-7. **Add the Render deploy secrets** to GitHub (Settings → Secrets → Actions):
+5. **Note the two service IDs** (the `srv-xxxxx` value in each service's Settings URL).
+6. **Add the Render deploy secrets** to GitHub (Settings → Secrets → Actions):
    - `RENDER_API_KEY` — from Render Account Settings → API Keys
    - `RENDER_PRODUCTION_SERVICE_ID` — the `production-server` service ID
    - `RENDER_PRODUCTION_WORKER_SERVICE_ID` — the `production-worker` service ID

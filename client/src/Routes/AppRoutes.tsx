@@ -1,3 +1,4 @@
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import App from '../App';
 import { AuthProvider } from '../Contexts/AuthProvider';
@@ -10,9 +11,11 @@ const router = createBrowserRouter([
   {
     path: '/',
     element: (
-      <AuthProvider>
-        <App />
-      </AuthProvider>
+      <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </GoogleOAuthProvider>
     ),
     children: [
       {

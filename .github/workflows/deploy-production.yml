@@ -5,6 +5,15 @@ on:
     branches:
       - main
 
+# Serialize deploys to main so two rapid merges can't race the mutable :production
+# tag (build/push/deploy out of order). Don't cancel an in-flight deploy.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/briankeane/lengua
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -50,27 +59,27 @@ jobs:
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
 
-  promote-to-production:
+  build-and-push-image:
     if: needs.check-deploy.outputs.enabled == 'true'
     needs: [build-and-test, lint-server, lint-client, test-client, check-deploy]
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       packages: write
     steps:
+      - uses: actions/checkout@v4
       - name: Log in to GHCR
         run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io --username "${{ secrets.GHCR_USERNAME }}" --password-stdin
-      - name: Promote staging image to production
-        env:
-          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
-          REPO_NAME: ${{ github.event.repository.name }}
+      - name: Build production image
+        run: docker build -t "$IMAGE:production" -t "$IMAGE:${{ github.sha }}" -f server/Dockerfile.production server
+      - name: Push images to GHCR
         run: |
-          docker pull ghcr.io/$GHCR_USERNAME/$REPO_NAME:staging
-          docker tag ghcr.io/$GHCR_USERNAME/$REPO_NAME:staging ghcr.io/$GHCR_USERNAME/$REPO_NAME:production
-          docker push ghcr.io/$GHCR_USERNAME/$REPO_NAME:production
+          docker push "$IMAGE:production"
+          docker push "$IMAGE:${{ github.sha }}"
 
   deploy-to-render:
     if: needs.check-deploy.outputs.enabled == 'true'
-    needs: [promote-to-production, check-deploy]
+    needs: [build-and-push-image, check-deploy]
     runs-on: ubuntu-latest
     steps:
       - name: Deploy production services on Render
@@ -78,48 +87,53 @@ jobs:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           RENDER_PRODUCTION_SERVICE_ID: ${{ secrets.RENDER_PRODUCTION_SERVICE_ID }}
           RENDER_PRODUCTION_WORKER_SERVICE_ID: ${{ secrets.RENDER_PRODUCTION_WORKER_SERVICE_ID }}
+          # Deploy the immutable per-commit tag (not the mutable :production tag) so the
+          # deploy is deterministic and can't race another push to main.
+          IMAGE_SHA: ghcr.io/briankeane/lengua:${{ github.sha }}
         run: |
-          echo "Triggering Render deploy for production-server..."
-          DEPLOY_RESPONSE=$(curl -sf \
-            -X POST \
-            -H "Authorization: Bearer $RENDER_API_KEY" \
-            -H "Content-Type: application/json" \
-            "https://api.render.com/v1/services/$RENDER_PRODUCTION_SERVICE_ID/deploys")
+          set -euo pipefail
 
-          DEPLOY_ID=$(echo "$DEPLOY_RESPONSE" | jq -r '.id')
-          echo "Deploy ID: $DEPLOY_ID"
-
-          echo "Polling deploy status..."
-          for i in $(seq 1 60); do
-            STATUS=$(curl -sf \
-              -H "Authorization: Bearer $RENDER_API_KEY" \
-              "https://api.render.com/v1/services/$RENDER_PRODUCTION_SERVICE_ID/deploys/$DEPLOY_ID" \
-              | jq -r '.status')
-
-            echo "  Attempt $i: $STATUS"
-
-            if [ "$STATUS" = "live" ]; then
-              echo "Deploy succeeded"
-              break
-            elif [ "$STATUS" = "deactivated" ] || [ "$STATUS" = "build_failed" ] || [ "$STATUS" = "update_failed" ] || [ "$STATUS" = "canceled" ]; then
-              echo "Deploy failed with status: $STATUS" >&2
-              exit 1
-            fi
-
-            sleep 10
-          done
-
-          if [ "$STATUS" != "live" ]; then
-            echo "Timed out waiting for deploy" >&2
-            exit 1
-          fi
-
-          # Deploy worker if service ID is set
-          if [ -n "$RENDER_PRODUCTION_WORKER_SERVICE_ID" ]; then
-            echo "Triggering Render deploy for production-worker..."
-            curl -sf \
-              -X POST \
+          # Trigger a deploy pinned to IMAGE_SHA, then poll to "live". Non-zero exit
+          # (including pre_deploy_failed — a failed migration) fails the job fast.
+          deploy_and_wait() {
+            local name="$1" service_id="$2"
+            echo "Triggering Render deploy for $name ($IMAGE_SHA)..."
+            local resp deploy_id status
+            resp=$(curl -sf -X POST \
               -H "Authorization: Bearer $RENDER_API_KEY" \
               -H "Content-Type: application/json" \
-              "https://api.render.com/v1/services/$RENDER_PRODUCTION_WORKER_SERVICE_ID/deploys"
+              -d "{\"imageUrl\": \"$IMAGE_SHA\"}" \
+              "https://api.render.com/v1/services/$service_id/deploys")
+            deploy_id=$(echo "$resp" | jq -r '.id')
+            echo "  [$name] deploy ID: $deploy_id"
+
+            for i in $(seq 1 90); do
+              status=$(curl -sf \
+                -H "Authorization: Bearer $RENDER_API_KEY" \
+                "https://api.render.com/v1/services/$service_id/deploys/$deploy_id" \
+                | jq -r '.status')
+              echo "  [$name] attempt $i: $status"
+              case "$status" in
+                live)
+                  echo "  [$name] deploy succeeded"
+                  return 0
+                  ;;
+                build_failed|update_failed|pre_deploy_failed|deactivated|canceled)
+                  echo "  [$name] deploy failed with status: $status" >&2
+                  return 1
+                  ;;
+              esac
+              sleep 10
+            done
+
+            echo "  [$name] timed out waiting for deploy" >&2
+            return 1
+          }
+
+          deploy_and_wait "production-server" "$RENDER_PRODUCTION_SERVICE_ID"
+
+          if [ -n "${RENDER_PRODUCTION_WORKER_SERVICE_ID:-}" ]; then
+            deploy_and_wait "production-worker" "$RENDER_PRODUCTION_WORKER_SERVICE_ID"
+          else
+            echo "RENDER_PRODUCTION_WORKER_SERVICE_ID not set — skipping worker deploy"
           fi

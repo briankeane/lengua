@@ -1,60 +1,66 @@
+# Production-only Blueprint. Every push to `main` builds a Docker image, pushes it
+# to GHCR, and deploys it here. No staging environment (yet).
+#
+# Services are `runtime: image` — they only PULL the tag, they never build. Deploys
+# are triggered by the GitHub Actions workflow via the Render API after a verified
+# image push, so `autoDeployTrigger: off` (Render must not also deploy on git commit).
+#
+# Bootstrap order matters — see the "Deploying to Render" runbook in README.md.
+databases:
+  - name: lengua-db
+    plan: basic-256mb
+    region: ohio
+
 services:
-  - type: web
-    name: staging-server
-    runtime: image
-    image:
-      url: ghcr.io/briankeane/language-driller:staging
-    region: ohio
-    plan: starter
-    startCommand: node dist/server.js
-    preDeployCommand: node dist/scripts/checkEnv.js && npx sequelize-cli --options-path=.sequelizerc db:migrate
-    autoDeploy: false
-    healthCheckPath: /v1/healthCheck
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - fromGroup: staging
-
-  - type: worker
-    name: staging-worker
-    runtime: image
-    image:
-      url: ghcr.io/briankeane/language-driller:staging
-    region: ohio
-    plan: starter
-    startCommand: node dist/worker.js
-    autoDeploy: false
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - fromGroup: staging
-
   - type: web
     name: production-server
     runtime: image
     image:
-      url: ghcr.io/briankeane/language-driller:production
+      url: ghcr.io/briankeane/lengua:production
     region: ohio
     plan: starter
-    startCommand: node dist/server.js
-    preDeployCommand: node dist/scripts/checkEnv.js && npx sequelize-cli --options-path=.sequelizerc db:migrate
-    autoDeploy: false
+    # image services use dockerCommand (NOT startCommand — that field is ignored for
+    # runtime: image). Use the FULL command: Render does not reliably pass the Docker
+    # Command as an arg to the image ENTRYPOINT, so bare `web`/`worker` tokens fail.
+    dockerCommand: node dist/server.js
+    # Render runs preDeployCommand as a single bare command with NO shell, so a
+    # `checkEnv && migrate` chain silently skips the migrate. The whole sequence
+    # (validate env, then migrate, non-zero exit on failure) lives in one Node script.
+    preDeployCommand: node dist/scripts/predeployMigrate.js
+    autoDeployTrigger: "off"
     healthCheckPath: /v1/healthCheck
+    domains:
+      - api.lengua-app.com
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: "10020"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: lengua-db
+          property: connectionString
       - fromGroup: production
 
   - type: worker
     name: production-worker
     runtime: image
     image:
-      url: ghcr.io/briankeane/language-driller:production
+      url: ghcr.io/briankeane/lengua:production
     region: ohio
     plan: starter
-    startCommand: node dist/worker.js
-    autoDeploy: false
+    dockerCommand: node dist/worker.js
+    # The web service owns DB migrations (predeployMigrate.js). The worker only
+    # validates env so it fails fast on bad config without racing that migration.
+    preDeployCommand: node dist/scripts/checkEnv.js
+    autoDeployTrigger: "off"
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: "10020"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: lengua-db
+          property: connectionString
       - fromGroup: production

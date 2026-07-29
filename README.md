@@ -29,9 +29,8 @@ A production-ready full-stack TypeScript starter with authentication, protected 
 
 - Docker Compose for local development
 - Automatic port management (multiple instances supported)
-- Render for staging and production hosting
-- CircleCI CI/CD pipeline (build, test, deploy to Render)
-- GitHub Actions release PR automation
+- Render for production hosting (single environment, deploy on push to `main`)
+- GitHub Actions CI/CD pipeline (lint, test, build image, deploy to Render)
 - Claude Code skills for AI-assisted development
 
 ## Quick Start
@@ -215,90 +214,99 @@ Each endpoint module has a co-located `.api.docs.yaml` file. See `server/src/api
 
 ### Overview
 
-The project uses [Render](https://render.com) for staging and production hosting. Docker images are built by CircleCI, pushed to GitHub Container Registry (GHCR), and deployed to Render via its API.
+Hosting is on [Render](https://render.com). There is **one environment (production)
+and one branch (`main`)** — every push to `main` builds a Docker image, pushes it to
+GitHub Container Registry (GHCR), and deploys it straight to production. There is no
+staging environment yet.
 
-**Pipeline flow:**
+The deploy is driven by GitHub Actions (`.github/workflows/deploy-production.yml`),
+not by Render building from git — the Render services are `runtime: image` and only
+*pull* the tag.
 
-1. Push to `develop` → CircleCI builds & tests → Docker image pushed to GHCR as `:staging` → deployed to Render staging
-2. Push to `main` → CircleCI builds & tests → `:staging` image promoted to `:production` → deployed to Render production
+**Pipeline flow (push to `main`):**
 
-### Initial Render Setup
+1. Lint + test (server and client)
+2. Build `server/Dockerfile.production`, push `ghcr.io/briankeane/lengua:production`
+   and an immutable `:<git-sha>` tag
+3. Call the Render API to deploy `production-server` **pinned to the `:<git-sha>`
+   image** (deterministic — can't race another push), poll until it's `live`
+4. Same for `production-worker` (also polled to `live`)
 
-1. **Create a Render account** at https://render.com
+If `RENDER_API_KEY` is not configured as a GitHub secret, the deploy jobs are skipped
+automatically (lint/test still run), so the pipeline is safe before Render exists.
 
-2. **Update `render.yaml`** — Replace `YOUR_ORG/YOUR_REPO` with your GitHub org and repo name (e.g. `ghcr.io/myorg/myapp:staging`)
+### Initial Render Setup (order matters)
 
-3. **Create a PostgreSQL database** in Render for each environment (staging and production)
+The Blueprint references the `:production` image tag, and Render verifies image access
+when it creates image-backed services — so the image and its pull access must exist
+**before** the first Blueprint sync.
 
-4. **Create environment variable groups** in the Render dashboard:
-   - `staging` — with `DATABASE_URL`, `JWT_SECRET`, and any other env vars from `server/.env-example`
-   - `production` — same keys, production values
+1. **Add GHCR push credentials as GitHub repo secrets** (Settings → Secrets and
+   variables → Actions):
+   - `GHCR_USERNAME` — `briankeane`
+   - `GHCR_TOKEN` — a GitHub Personal Access Token with `write:packages` scope
+2. **Push `main` once** so the workflow builds and pushes the first
+   `ghcr.io/briankeane/lengua:production` image. (The Render deploy steps skip
+   themselves until `RENDER_API_KEY` exists.)
+3. **Give Render pull access to the image** — either:
+   - make the GHCR package **public** (GitHub → your profile → Packages → `lengua` →
+     Package settings → Change visibility → Public), **or**
+   - create a Render **registry credential** for GHCR (Render → Account Settings →
+     Registry Credentials) and attach it to the image services when creating them.
+4. **Create the `production` env var group** in the Render dashboard with:
+   - `JWT_SECRET` — a strong secret
+   - (add `REDIS_URL` later if/when you enable the BullMQ queue)
 
-5. **Create the services** using the Render Blueprint:
-   - Go to Render Dashboard → **Blueprints** → **New Blueprint Instance**
-   - Connect your GitHub repo and select the `render.yaml` file
-   - Render will create the staging-server, staging-worker, production-server, and production-worker services
-
-6. **Note the service IDs** — You'll need these for CircleCI. Find them in each service's Settings page URL (the `srv-xxxxx` value).
-
-### CircleCI Setup
-
-1. Sign up at https://circleci.com/ and connect your GitHub repository
-
-2. Add these environment variables in CircleCI project settings:
-   - `DOCKERHUB_USERNAME` — Docker Hub username
-   - `DOCKERHUB_PASSWORD` — Docker Hub access token
-
-3. Create a **`ghcr`** context in CircleCI with:
-   - `GHCR_USERNAME` — Your GitHub username or org name
-   - `GHCR_TOKEN` — A GitHub Personal Access Token with `write:packages` scope
-
-4. Create a **`render`** context in CircleCI with:
-   - `RENDER_API_KEY` — Render API key (from Account Settings → API Keys)
-   - `RENDER_STAGING_SERVICE_ID` — Service ID for `staging-server`
-   - `RENDER_STAGING_WORKER_SERVICE_ID` — Service ID for `staging-worker` (optional)
-   - `RENDER_PRODUCTION_SERVICE_ID` — Service ID for `production-server`
-   - `RENDER_PRODUCTION_WORKER_SERVICE_ID` — Service ID for `production-worker` (optional)
-
-### Deploying to Staging
-
-Merge a PR into `develop`. CircleCI will automatically:
-1. Build and test the server
-2. Build the production Docker image
-3. Push it to GHCR tagged as `:staging`
-4. Trigger a deploy on Render staging
-5. Wait for the deploy to go live
+   `DATABASE_URL`, `NODE_ENV`, and `PORT` are **not** set here — the Blueprint wires
+   `DATABASE_URL` from the managed database and sets `NODE_ENV`/`PORT` inline.
+5. **Create the Blueprint** — Render Dashboard → **Blueprints** → **New Blueprint
+   Instance** → connect this repo and select `render.yaml`. Render provisions the
+   `lengua-db` Postgres, `production-server`, and `production-worker`. (If the image
+   is private, select the registry credential when prompted.)
+6. **Note the two service IDs** (the `srv-xxxxx` value in each service's Settings URL).
+7. **Add the Render deploy secrets** to GitHub (Settings → Secrets → Actions):
+   - `RENDER_API_KEY` — from Render Account Settings → API Keys
+   - `RENDER_PRODUCTION_SERVICE_ID` — the `production-server` service ID
+   - `RENDER_PRODUCTION_WORKER_SERVICE_ID` — the `production-worker` service ID
 
 ### Deploying to Production
 
-Merge `develop` into `main`. CircleCI will automatically:
-1. Build and test the server
-2. Pull the `:staging` image, re-tag it as `:production`, and push to GHCR
-3. Trigger a deploy on Render production
-4. Wait for the deploy to go live
+Merge a PR into `main` (or push to `main`). The workflow builds, pushes, and triggers
+the Render deploy end to end. On each deploy Render runs the `preDeployCommand`
+(`predeployMigrate.js` on the web service — validate env, then run migrations) before
+cutting traffic to the new container, and the `/v1/healthCheck` health check gates the
+rollout. A failed migration fails the deploy closed, so traffic never moves to an
+un-migrated schema.
 
-### Release Workflow
+### Rollback
 
-To create a release PR from `develop` to `main`:
-
-1. Go to GitHub Actions -> "Create Release PR" -> Run workflow
-2. Choose version bump type (patch/minor/major) and enter a release title
-3. A PR is auto-created with the version bump and commit summary
+Each deploy also pushed a `:<git-sha>` image tag. To roll back, redeploy a previous
+image from the Render dashboard (Deploys → pick an earlier deploy → Redeploy), or
+re-point the service at an older `:<git-sha>` tag.
 
 ### Custom Domain Setup
 
-To point a custom domain at your Render services:
+The API is served at **`api.lengua-app.com`** (the client is deployed separately on
+Netlify at `www.lengua-app.com`). `api.lengua-app.com` is declared in `render.yaml`
+(`domains:` on `production-server`), so Render provisions the TLS certificate on
+Blueprint sync and shows the DNS target it wants.
 
-1. **Add the domain in Render** — Go to your service's **Settings → Custom Domains** and add the domain (e.g. `api.example.com`). Render provisions a TLS certificate automatically.
+1. **Confirm the domain in Render** — `production-server` → **Settings → Custom
+   Domains** lists `api.lengua-app.com` (from the Blueprint) with its verification/DNS
+   target.
 
-2. **Create a CNAME record** with your DNS provider pointing the subdomain to your Render service hostname:
+2. **Create a CNAME record** with your DNS provider:
 
-   | Subdomain       | Type  | Target                                  |
-   | --------------- | ----- | --------------------------------------- |
-   | `api-staging`   | CNAME | `myapp-staging-server.onrender.com`     |
-   | `api`           | CNAME | `myapp-production-server.onrender.com`  |
+   | Subdomain | Type  | Target                             |
+   | --------- | ----- | ---------------------------------- |
+   | `api`     | CNAME | `production-server.onrender.com` (use the exact target Render shows) |
 
-3. **Wait for DNS propagation** and verify the domain is active in Render's Custom Domains panel.
+3. **Wait for DNS propagation** and verify the domain is active in Render's Custom
+   Domains panel.
+
+4. **CORS** — the API must allow the client origin `https://www.lengua-app.com`. The
+   scaffold currently sends `Access-Control-Allow-Origin: *`; lock it to the client
+   origin before going live (see `server/src/server.ts`).
 
 > **Cloudflare users:** CNAME records **must** be set to **DNS only** (grey cloud icon), not Proxied (orange cloud). Proxied mode causes **Cloudflare Error 1000** ("DNS points to prohibited IP") because Render's origin IPs are on Cloudflare's network. Render handles TLS automatically, so Cloudflare's proxy is not needed.
 

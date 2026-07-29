@@ -1,0 +1,30 @@
+/api/health:
+  get:
+    tags:
+      - Health
+    summary: Health Check
+    description: Returns the health status of the API
+    operationId: healthCheck
+    responses:
+      '200':
+        description: Successful health check response
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                healthy:
+                  type: boolean
+                  example: true
+              required:
+                - healthy
+      '500':
+        description: Server error
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+                  example: Internal server error

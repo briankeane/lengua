@@ -1,0 +1,36 @@
+name: Test
+
+on:
+  push:
+    branches-ignore:
+      - main
+      - develop
+
+jobs:
+  build-and-test-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: touch ./server/.env
+      - run: docker compose run server sh -c "npx env-cmd -f .env-test npm run build && npm test"
+
+  lint-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: touch ./server/.env
+      - run: docker compose run server npm run lint
+
+  lint-client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: touch ./server/.env
+      - run: docker compose run client npm run lint
+
+  test-client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: touch ./server/.env
+      - run: docker compose run client npm test

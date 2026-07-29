@@ -1,0 +1,148 @@
+paths:
+  /v1/auth/signup:
+    post:
+      tags:
+        - Authentication
+      summary: Create a new user account
+      description: Register a new user with email and password. Returns the user and a JWT token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - firstName
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  minLength: 1
+                  example: mypassword123
+                firstName:
+                  type: string
+                  example: Jane
+                lastName:
+                  type: string
+                  example: Doe
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/UserJwtRepr'
+                  token:
+                    type: string
+        '400':
+          description: Missing required fields
+        '409':
+          description: A user with this email already exists
+
+  /v1/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Log in with email and password
+      description: Authenticate with email and password. Returns the user and a JWT token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  example: mypassword123
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/UserJwtRepr'
+                  token:
+                    type: string
+        '400':
+          description: Missing required fields
+        '401':
+          description: Invalid email or password
+
+  /v1/auth/google:
+    post:
+      tags:
+        - Authentication
+      summary: Sign in with Google
+      description: >
+        Exchange a Google ID token for a JWT. Creates a new user if one
+        does not exist. Only available when GOOGLE_CLIENT_ID is configured.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - idToken
+              properties:
+                idToken:
+                  type: string
+                  description: Google ID token from client-side sign-in
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/UserJwtRepr'
+                  token:
+                    type: string
+        '400':
+          description: Google sign-in not configured or missing idToken
+        '401':
+          description: Invalid Google ID token
+
+components:
+  schemas:
+    UserJwtRepr:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        firstName:
+          type: string
+        lastName:
+          type: string
+        displayName:
+          type: string
+        email:
+          type: string
+          format: email
+        profileImageUrl:
+          type: string
+        role:
+          type: string
+          enum: [admin, user, guest]

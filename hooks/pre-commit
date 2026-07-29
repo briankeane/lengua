@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# Get staged files
+staged_files=$(git diff --cached --name-only --diff-filter=ACM)
+
+if [ -z "$staged_files" ]; then
+  exit 0
+fi
+
+client_files=$(echo "$staged_files" | grep -E '^client/.*\.(ts|tsx|js|jsx)$' || true)
+server_files=$(echo "$staged_files" | grep -E '^server/.*\.(ts|tsx|js|jsx)$' || true)
+
+format_client_files() {
+  if [ -n "$client_files" ]; then
+    echo "Formatting client files with prettier..."
+    container_paths=$(echo "$client_files" | sed 's|^client/|/usr/src/app/|')
+    echo "$container_paths" | xargs -I {} docker compose exec -T client npx prettier --write "{}"
+    echo "$client_files" | xargs git add
+  fi
+}
+
+format_server_files() {
+  if [ -n "$server_files" ]; then
+    echo "Formatting server files with prettier..."
+    container_paths=$(echo "$server_files" | sed 's|^server/|/usr/src/app/|')
+    echo "$container_paths" | xargs -I {} docker compose exec -T server npx prettier --write "{}"
+    echo "$server_files" | xargs git add
+  fi
+}
+
+if ! docker compose ps | grep -q "Up"; then
+  echo "Docker containers are not running. Please run 'docker compose up' or 'make launch' first."
+  exit 1
+fi
+
+format_client_files
+format_server_files
+
+exit 0

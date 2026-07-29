@@ -1,0 +1,122 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: touch ./server/.env
+      - run: docker compose run server sh -c "npx env-cmd -f .env-test npm run build && npm test"
+
+  lint-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: touch ./server/.env
+      - run: docker compose run server npm run lint
+
+  lint-client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: touch ./server/.env
+      - run: docker compose run client npm run lint
+
+  test-client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: touch ./server/.env
+      - run: docker compose run client npm test
+
+  check-deploy:
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - id: check
+        run: |
+          if [ -n "$RENDER_API_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::RENDER_API_KEY not configured, skipping deploy"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+
+  build-and-push-image:
+    if: needs.check-deploy.outputs.enabled == 'true'
+    needs: [build-and-test, lint-server, lint-client, test-client, check-deploy]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io --username "${{ secrets.GHCR_USERNAME }}" --password-stdin
+      - name: Build production image
+        run: docker build -t ghcr.io/${{ secrets.GHCR_USERNAME }}/${{ github.event.repository.name }}:staging -f server/Dockerfile.production server
+      - name: Push image to GHCR
+        run: docker push ghcr.io/${{ secrets.GHCR_USERNAME }}/${{ github.event.repository.name }}:staging
+
+  deploy-to-render:
+    if: needs.check-deploy.outputs.enabled == 'true'
+    needs: [build-and-push-image, check-deploy]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy staging services on Render
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_STAGING_SERVICE_ID: ${{ secrets.RENDER_STAGING_SERVICE_ID }}
+          RENDER_STAGING_WORKER_SERVICE_ID: ${{ secrets.RENDER_STAGING_WORKER_SERVICE_ID }}
+        run: |
+          echo "Triggering Render deploy for staging-server..."
+          DEPLOY_RESPONSE=$(curl -sf \
+            -X POST \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Content-Type: application/json" \
+            "https://api.render.com/v1/services/$RENDER_STAGING_SERVICE_ID/deploys")
+
+          DEPLOY_ID=$(echo "$DEPLOY_RESPONSE" | jq -r '.id')
+          echo "Deploy ID: $DEPLOY_ID"
+
+          echo "Polling deploy status..."
+          for i in $(seq 1 60); do
+            STATUS=$(curl -sf \
+              -H "Authorization: Bearer $RENDER_API_KEY" \
+              "https://api.render.com/v1/services/$RENDER_STAGING_SERVICE_ID/deploys/$DEPLOY_ID" \
+              | jq -r '.status')
+
+            echo "  Attempt $i: $STATUS"
+
+            if [ "$STATUS" = "live" ]; then
+              echo "Deploy succeeded"
+              break
+            elif [ "$STATUS" = "deactivated" ] || [ "$STATUS" = "build_failed" ] || [ "$STATUS" = "update_failed" ] || [ "$STATUS" = "canceled" ]; then
+              echo "Deploy failed with status: $STATUS" >&2
+              exit 1
+            fi
+
+            sleep 10
+          done
+
+          if [ "$STATUS" != "live" ]; then
+            echo "Timed out waiting for deploy" >&2
+            exit 1
+          fi
+
+          # Deploy worker if service ID is set
+          if [ -n "$RENDER_STAGING_WORKER_SERVICE_ID" ]; then
+            echo "Triggering Render deploy for staging-worker..."
+            curl -sf \
+              -X POST \
+              -H "Authorization: Bearer $RENDER_API_KEY" \
+              -H "Content-Type: application/json" \
+              "https://api.render.com/v1/services/$RENDER_STAGING_WORKER_SERVICE_ID/deploys"
+          fi

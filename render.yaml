@@ -1,0 +1,60 @@
+services:
+  - type: web
+    name: staging-server
+    runtime: image
+    image:
+      url: ghcr.io/briankeane/language-driller:staging
+    region: ohio
+    plan: starter
+    startCommand: node dist/server.js
+    preDeployCommand: node dist/scripts/checkEnv.js && npx sequelize-cli --options-path=.sequelizerc db:migrate
+    autoDeploy: false
+    healthCheckPath: /v1/healthCheck
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - fromGroup: staging
+
+  - type: worker
+    name: staging-worker
+    runtime: image
+    image:
+      url: ghcr.io/briankeane/language-driller:staging
+    region: ohio
+    plan: starter
+    startCommand: node dist/worker.js
+    autoDeploy: false
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - fromGroup: staging
+
+  - type: web
+    name: production-server
+    runtime: image
+    image:
+      url: ghcr.io/briankeane/language-driller:production
+    region: ohio
+    plan: starter
+    startCommand: node dist/server.js
+    preDeployCommand: node dist/scripts/checkEnv.js && npx sequelize-cli --options-path=.sequelizerc db:migrate
+    autoDeploy: false
+    healthCheckPath: /v1/healthCheck
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - fromGroup: production
+
+  - type: worker
+    name: production-worker
+    runtime: image
+    image:
+      url: ghcr.io/briankeane/language-driller:production
+    region: ohio
+    plan: starter
+    startCommand: node dist/worker.js
+    autoDeploy: false
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - fromGroup: production

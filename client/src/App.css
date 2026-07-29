@@ -1,0 +1,90 @@
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-content {
+  flex: 1;
+  max-width: 800px;
+  width: 100%;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+/* Navbar */
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid #333;
+}
+
+.navbar-brand {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.navbar-links {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.navbar-user {
+  opacity: 0.7;
+  font-size: 0.9rem;
+}
+
+.navbar-logout {
+  padding: 0.3em 0.8em;
+  font-size: 0.85rem;
+}
+
+/* Auth pages */
+.auth-page {
+  max-width: 400px;
+  margin: 2rem auto;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.auth-form label {
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.auth-form input {
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: inherit;
+  color: inherit;
+  font-size: 1rem;
+}
+
+.auth-form button {
+  margin-top: 1rem;
+}
+
+.auth-error {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.1);
+  padding: 0.5rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+/* Dashboard */
+.dashboard-page {
+  margin: 1rem 0;
+}
+
+.user-info p {
+  margin: 0.5rem 0;
+}

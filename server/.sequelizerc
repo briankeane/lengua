@@ -1,0 +1,11 @@
+/*
+ * This is only used by the sequelize-cli... not touched by the app
+ */
+
+const path = require('path');
+
+module.exports = {
+  config: path.resolve('dist', 'db', 'config.js'),
+  'models-path': path.resolve('dist', 'db', 'models'),
+  'migrations-path': path.resolve('dist', 'db', 'migrations'),
+};

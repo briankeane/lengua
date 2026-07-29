@@ -1,0 +1,93 @@
+services:
+  # Uncomment to enable Redis (also add REDIS_URL=redis://redis:6379 to server/.env)
+  # redis:
+  #   image: "redis:alpine"
+  #   ports:
+  #     - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+
+  postgres:
+    user: postgres
+    build: ./docker/postgres
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - ./docker/postgres:/docker-entrypoint-initdb.d
+    environment:
+      POSTGRES_MULTIPLE_DATABASES: serverdev,servertest
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: pass
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready', '-u', 'postgres', '-d', 'serverdev']
+      interval: 1s
+      timeout: 60s
+      retries: 5
+      start_period: 80s
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    ports:
+      - '127.0.0.1:${SERVER_PORT:-10020}:10020'
+      - '127.0.0.1:${SERVER_DEBUG_PORT:-9229}:9229'
+    expose:
+      - 9229
+    volumes:
+      - ./server:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      - postgres
+      - migrate
+    env_file:
+      - ./server/.env
+    command: ['npm', 'run', 'dev']
+
+  worker:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    ports:
+      - '127.0.0.1:${WORKER_PORT:-10030}:10030'
+    expose:
+      - 9229
+    volumes:
+      - type: bind
+        source: ./server
+        target: /usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      - postgres
+      - migrate
+    env_file:
+      - ./server/.env
+    command: ['npm', 'run', 'worker']
+
+  migrate:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    volumes:
+      - ./server:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    env_file:
+      - ./server/.env
+    command: ['npm', 'run', 'migrate:all']
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    command: npm run dev
+    volumes:
+      - ./client:/usr/src/app
+      - /usr/src/app/node_modules
+    env_file:
+      - path: ./client/.env
+        required: false
+    ports:
+      - '${CLIENT_PORT:-3000}:3000'
+      - '${CLIENT_HMR_PORT:-3010}:3010'

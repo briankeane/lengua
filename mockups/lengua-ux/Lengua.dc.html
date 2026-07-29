@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/nocturne-b125eebf-ea32-44ca-bd55-3572b2305e11/styles.css">
+<script src="_ds/nocturne-b125eebf-ea32-44ca-bd55-3572b2305e11/_ds_bundle.js"></script>
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<style>
+  html, body { background: var(--color-bg); }
+  body { -webkit-font-smoothing: antialiased; }
+  a { color: var(--color-accent-300); text-decoration: none; }
+  a:hover { color: var(--color-accent-200); }
+  input, button, select { font-family: var(--font-body); }
+  input::placeholder { color: var(--color-neutral-700); }
+  @keyframes orbPulse {
+    0%, 100% { transform: scale(1); opacity: .85; }
+    50% { transform: scale(1.06); opacity: 1; }
+  }
+  @keyframes orbRing {
+    0% { transform: scale(.9); opacity: .5; }
+    100% { transform: scale(1.55); opacity: 0; }
+  }
+  @keyframes riseIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+  }
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body);display:flex;justify-content:center">
+<div style="width:100%;max-width:460px;position:relative;display:flex;flex-direction:column;min-height:100vh">
+
+<sc-if value="{{ isSignin }}" hint-placeholder-val="{{ true }}">
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:space-between;padding:64px 28px 40px">
+    <div style="display:flex;flex-direction:column;gap:14px;margin-top:14vh">
+      <div style="width:26px;height:26px;border-radius:50%;border:1px solid var(--color-accent);box-shadow:0 0 24px color-mix(in srgb, var(--color-accent) 45%, transparent)"></div>
+      <h1 style="font-size:40px;letter-spacing:-0.03em;margin:0">Lengua</h1>
+      <p style="margin:0;font-size:15px;line-height:1.5;color:var(--color-neutral-500);max-width:20ch">Look it up. Keep it. Say it back.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button onClick="{{ signIn }}" style="display:flex;align-items:center;justify-content:center;gap:10px;height:50px;border-radius:var(--radius-md);border:1px solid var(--color-neutral-700);background:transparent;color:var(--color-text);font-size:15px;font-weight:500;cursor:pointer" style-hover="background:var(--color-neutral-900);border-color:var(--color-neutral-600)">
+        <i class="ph ph-apple-logo" style="font-size:19px"></i>Continue with Apple</button>
+      <button onClick="{{ signIn }}" style="display:flex;align-items:center;justify-content:center;gap:10px;height:50px;border-radius:var(--radius-md);border:1px solid var(--color-neutral-700);background:transparent;color:var(--color-text);font-size:15px;font-weight:500;cursor:pointer" style-hover="background:var(--color-neutral-900);border-color:var(--color-neutral-600)">
+        <i class="ph ph-google-logo" style="font-size:19px"></i>Continue with Google</button>
+      <p style="margin:10px 0 0;font-size:11px;color:var(--color-neutral-700);text-align:center">No password. No email.</p>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ isLookup }}" hint-placeholder-val="{{ true }}">
+  <div style="flex:1;padding:26px 22px 110px;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--color-neutral-500);margin-bottom:26px">
+      <select value="{{ source }}" onChange="{{ setSource }}" style="appearance:none;background:transparent;border:0;color:var(--color-text);font-size:12px;cursor:pointer;padding:2px 4px">
+        <option value="English">English</option>
+        <option value="Spanish">Spanish</option>
+        <option value="French">French</option>
+        <option value="Portuguese">Portuguese</option>
+        <option value="Japanese">Japanese</option>
+      </select>
+      <button onClick="{{ swapLangs }}" title="Swap" style="display:grid;place-items:center;width:26px;height:26px;border-radius:var(--radius-sm);border:0;background:transparent;color:var(--color-neutral-500);cursor:pointer" style-hover="color:var(--color-accent-300);background:var(--color-neutral-900)"><i class="ph ph-arrows-left-right" style="font-size:14px"></i></button>
+      <select value="{{ target }}" onChange="{{ setTarget }}" style="appearance:none;background:transparent;border:0;color:var(--color-text);font-size:12px;cursor:pointer;padding:2px 4px">
+        <option value="Spanish">Spanish</option>
+        <option value="English">English</option>
+        <option value="French">French</option>
+        <option value="Portuguese">Portuguese</option>
+        <option value="Japanese">Japanese</option>
+      </select>
+      <div style="flex:1"></div>
+      <sc-if value="{{ showDueBadge }}" hint-placeholder-val="{{ true }}">
+        <a href="#" onClick="{{ goReview }}" style="font-size:12px;color:var(--color-neutral-500)">{{ dueCount }} due</a>
+      </sc-if>
+    </div>
+
+    <input value="{{ query }}" onChange="{{ setQuery }}" placeholder="Type a word or phrase" autoFocus="{{ true }}" style="width:100%;background:transparent;border:0;border-bottom:1px solid var(--color-neutral-800);color:var(--color-text);font-size:29px;font-family:var(--font-heading);font-weight:500;letter-spacing:-0.02em;padding:0 0 14px;outline:none" />
+
+    <sc-if value="{{ hasResult }}" hint-placeholder-val="{{ true }}">
+      <div style="animation:riseIn .22s ease both;padding-top:26px">
+        <div style="font-size:34px;font-family:var(--font-heading);font-weight:500;letter-spacing:-0.02em;color:var(--color-accent-300);line-height:1.15">{{ translation }}</div>
+        <div style="margin-top:8px;font-size:13px;color:var(--color-neutral-600)">{{ pronunciation }}</div>
+        <div style="display:flex;gap:8px;margin-top:26px">
+          <button onClick="{{ saveCard }}" style="display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 16px;border-radius:var(--radius-md);border:1px solid var(--color-accent);background:transparent;color:var(--color-accent-300);font-size:13px;font-weight:500;cursor:pointer" style-hover="background:color-mix(in srgb, var(--color-accent) 12%, transparent)">
+            <i class="ph ph-plus" style="font-size:14px"></i>{{ saveLabel }}</button>
+          <button style="display:grid;place-items:center;width:38px;height:38px;border-radius:var(--radius-md);border:1px solid var(--color-neutral-800);background:transparent;color:var(--color-neutral-500);cursor:pointer" style-hover="color:var(--color-text);border-color:var(--color-neutral-700)"><i class="ph ph-speaker-high" style="font-size:15px"></i></button>
+        </div>
+        <sc-if value="{{ hasNotes }}" hint-placeholder-val="{{ true }}">
+          <p style="margin:28px 0 0;font-size:13px;line-height:1.6;color:var(--color-neutral-600);max-width:34ch">{{ note }}</p>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showRecent }}" hint-placeholder-val="{{ true }}">
+      <div style="padding-top:34px">
+        <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--color-neutral-700);margin-bottom:12px">Recent</div>
+        <sc-for list="{{ recent }}" as="r" hint-placeholder-count="3">
+          <button onClick="{{ r.open }}" style="display:flex;width:100%;align-items:baseline;gap:12px;padding:11px 0;background:transparent;border:0;border-bottom:1px solid var(--color-neutral-900);color:var(--color-text);cursor:pointer;text-align:left" style-hover="opacity:.7">
+            <span style="font-size:14px">{{ r.en }}</span>
+            <span style="font-size:14px;color:var(--color-neutral-600);margin-left:auto">{{ r.es }}</span>
+          </button>
+        </sc-for>
+      </div>
+    </sc-if>
+  </div>
+</sc-if>
+
+<sc-if value="{{ isDeck }}" hint-placeholder-val="{{ true }}">
+  <div style="flex:1;padding:26px 22px 110px">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:28px">
+      <h2 style="font-size:26px;margin:0;letter-spacing:-0.02em">Deck</h2>
+      <span style="font-size:12px;color:var(--color-neutral-600)">{{ cardCount }} cards · {{ dueCount }} due</span>
+    </div>
+    <sc-for list="{{ cards }}" as="c" hint-placeholder-count="5">
+      <div style="display:flex;align-items:center;gap:14px;padding:15px 0;border-bottom:1px solid var(--color-neutral-900)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:15px;line-height:1.3">{{ c.en }}</div>
+          <div style="font-size:14px;color:var(--color-neutral-600);line-height:1.4">{{ c.es }}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;color:var(--color-neutral-700);white-space:nowrap">{{ c.when }}</span>
+          <span style="width:6px;height:6px;border-radius:50%;background:{{ c.dot }}"></span>
+        </div>
+      </div>
+    </sc-for>
+    <button onClick="{{ goReview }}" style="margin-top:28px;width:100%;height:46px;border-radius:var(--radius-md);border:1px solid var(--color-accent);background:transparent;color:var(--color-accent-300);font-size:14px;font-weight:500;cursor:pointer" style-hover="background:color-mix(in srgb, var(--color-accent) 12%, transparent)">Review {{ dueCount }}</button>
+  </div>
+</sc-if>
+
+<sc-if value="{{ isReview }}" hint-placeholder-val="{{ true }}">
+  <div style="flex:1;display:flex;flex-direction:column;padding:26px 22px 110px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:44px">
+      <button onClick="{{ goDeck }}" style="display:grid;place-items:center;width:30px;height:30px;margin-left:-6px;border:0;background:transparent;color:var(--color-neutral-600);cursor:pointer" style-hover="color:var(--color-text)"><i class="ph ph-x" style="font-size:16px"></i></button>
+      <div style="flex:1;height:1px;background:var(--color-neutral-900);position:relative">
+        <div style="position:absolute;left:0;top:0;height:1px;width:{{ progressPct }};background:var(--color-accent)"></div>
+      </div>
+      <span style="font-size:11px;color:var(--color-neutral-700)">{{ reviewCounter }}</span>
+    </div>
+
+    <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--color-neutral-700);margin-bottom:14px">{{ promptLang }}</div>
+    <div style="font-size:32px;font-family:var(--font-heading);font-weight:500;letter-spacing:-0.02em;line-height:1.15">{{ promptText }}</div>
+
+    <div style="margin-top:38px;display:flex;align-items:center;gap:10px;border-bottom:1px solid {{ answerBorder }};padding-bottom:12px">
+      <input value="{{ answer }}" onChange="{{ setAnswer }}" onKeyDown="{{ onAnswerKey }}" placeholder="{{ answerPlaceholder }}" style="flex:1;background:transparent;border:0;color:{{ answerColor }};font-size:22px;font-family:var(--font-heading);font-weight:500;outline:none;min-width:0" />
+      <button onClick="{{ toggleDictate }}" title="Dictate" style="display:grid;place-items:center;width:34px;height:34px;border-radius:50%;border:1px solid {{ micBorder }};background:transparent;color:{{ micColor }};cursor:pointer;flex:none"><i class="ph ph-microphone" style="font-size:15px"></i></button>
+    </div>
+
+    <sc-if value="{{ isGraded }}" hint-placeholder-val="{{ true }}">
+      <div style="margin-top:20px;animation:riseIn .2s ease both">
+        <div style="font-size:13px;color:var(--color-neutral-500)">{{ gradeNote }}</div>
+      </div>
+    </sc-if>
+
+    <div style="flex:1"></div>
+    <button onClick="{{ primaryAction }}" style="width:100%;height:48px;border-radius:var(--radius-md);border:1px solid var(--color-accent);background:transparent;color:var(--color-accent-300);font-size:14px;font-weight:500;cursor:pointer" style-hover="background:color-mix(in srgb, var(--color-accent) 12%, transparent)">{{ primaryLabel }}</button>
+  </div>
+</sc-if>
+
+<sc-if value="{{ isSummary }}" hint-placeholder-val="{{ true }}">
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:26px 22px 110px;gap:34px">
+    <div>
+      <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--color-neutral-700);margin-bottom:12px">Session</div>
+      <h2 style="font-size:30px;margin:0;letter-spacing:-0.02em">{{ summaryHeadline }}</h2>
+    </div>
+    <div style="display:flex;gap:0;border-top:1px solid var(--color-neutral-900);border-bottom:1px solid var(--color-neutral-900)">
+      <div style="flex:1;padding:18px 0">
+        <div style="font-size:26px;font-family:var(--font-heading);font-weight:500">{{ rightCount }}</div>
+        <div style="font-size:11px;color:var(--color-neutral-600);margin-top:2px">correct</div>
+      </div>
+      <div style="flex:1;padding:18px 0">
+        <div style="font-size:26px;font-family:var(--font-heading);font-weight:500">{{ wrongCount }}</div>
+        <div style="font-size:11px;color:var(--color-neutral-600);margin-top:2px">to repeat</div>
+      </div>
+      <div style="flex:1;padding:18px 0">
+        <div style="font-size:26px;font-family:var(--font-heading);font-weight:500">{{ nextDue }}</div>
+        <div style="font-size:11px;color:var(--color-neutral-600);margin-top:2px">next due</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button onClick="{{ goVoice }}" style="width:100%;height:46px;border-radius:var(--radius-md);border:1px solid var(--color-accent);background:transparent;color:var(--color-accent-300);font-size:14px;font-weight:500;cursor:pointer" style-hover="background:color-mix(in srgb, var(--color-accent) 12%, transparent)">Use them in conversation</button>
+      <button onClick="{{ goLookup }}" style="width:100%;height:46px;border-radius:var(--radius-md);border:1px solid var(--color-neutral-800);background:transparent;color:var(--color-neutral-400);font-size:14px;cursor:pointer" style-hover="border-color:var(--color-neutral-700);color:var(--color-text)">Done</button>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ isVoice }}" hint-placeholder-val="{{ true }}">
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding:26px 22px 110px;position:relative">
+    <div style="position:absolute;top:26px;left:22px;right:22px;display:flex;justify-content:space-between;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--color-neutral-700)">
+      <span>{{ target }}</span><span>{{ voiceWords }}</span>
+    </div>
+    <div style="position:relative;width:220px;height:220px;display:grid;place-items:center">
+      <div style="{{ ringStyle }}"></div>
+      <button onClick="{{ toggleVoice }}" style="{{ orbStyle }}"></button>
+    </div>
+    <div style="margin-top:52px;height:22px;font-size:14px;color:var(--color-neutral-500);text-align:center">{{ voiceStatus }}</div>
+    <button onClick="{{ toggleVoice }}" style="margin-top:18px;font-size:12px;color:var(--color-neutral-700);background:transparent;border:0;cursor:pointer" style-hover="color:var(--color-text)">{{ voiceHint }}</button>
+  </div>
+</sc-if>
+
+<sc-if value="{{ isSettings }}" hint-placeholder-val="{{ true }}">
+  <div style="flex:1;padding:26px 22px 110px">
+    <h2 style="font-size:26px;margin:0 0 28px;letter-spacing:-0.02em">Account</h2>
+    <div style="display:flex;align-items:center;gap:12px;padding-bottom:22px;border-bottom:1px solid var(--color-neutral-900)">
+      <div style="width:36px;height:36px;border-radius:50%;border:1px solid var(--color-neutral-800);display:grid;place-items:center;color:var(--color-neutral-500)"><i class="ph ph-user" style="font-size:16px"></i></div>
+      <div style="line-height:1.3">
+        <div style="font-size:14px">{{ accountName }}</div>
+        <div style="font-size:12px;color:var(--color-neutral-600)">{{ accountProvider }}</div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:17px 0;border-bottom:1px solid var(--color-neutral-900);font-size:14px">
+      <span>Languages</span><span style="color:var(--color-neutral-600);font-size:13px">{{ langPair }}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:17px 0;border-bottom:1px solid var(--color-neutral-900);font-size:14px">
+      <span>Daily review cap</span><span style="color:var(--color-neutral-600);font-size:13px">20 cards</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:17px 0;border-bottom:1px solid var(--color-neutral-900);font-size:14px">
+      <span>Speaking voice</span><span style="color:var(--color-neutral-600);font-size:13px">Neutral · slow</span>
+    </div>
+    <button onClick="{{ signOut }}" style="margin-top:34px;width:100%;height:46px;border-radius:var(--radius-md);border:1px solid var(--color-neutral-800);background:transparent;color:var(--color-neutral-400);font-size:14px;cursor:pointer" style-hover="border-color:var(--color-neutral-700);color:var(--color-text)">Sign out</button>
+  </div>
+</sc-if>
+
+<sc-if value="{{ showNav }}" hint-placeholder-val="{{ true }}">
+  <div style="position:fixed;bottom:0;width:100%;max-width:460px;background:linear-gradient(to top, var(--color-bg) 62%, transparent);padding:14px 22px 20px;display:flex;gap:4px;justify-content:space-between">
+    <sc-for list="{{ nav }}" as="n" hint-placeholder-count="5">
+      <button onClick="{{ n.go }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 0;border:0;border-radius:var(--radius-md);background:transparent;color:{{ n.color }};cursor:pointer" style-hover="background:var(--color-neutral-900)">
+        <i class="{{ n.icon }}" style="font-size:19px"></i>
+        <span style="font-size:10px;letter-spacing:0.02em">{{ n.label }}</span>
+      </button>
+    </sc-for>
+  </div>
+</sc-if>
+
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:460,&quot;height&quot;:900},&quot;defaultTarget&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Spanish&quot;,&quot;French&quot;,&quot;Portuguese&quot;,&quot;Japanese&quot;,&quot;English&quot;],&quot;default&quot;:&quot;Spanish&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;showProgress&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
+const DICT = {
+  "where is the train station": ["¿dónde está la estación de tren?", "DON-de es-TA la es-ta-SYON de tren", "Drop “¿dónde está” in front of any place."],
+  "the bill please": ["la cuenta, por favor", "la KWEN-ta por fa-VOR", ""],
+  "i would like": ["me gustaría", "me gus-ta-RI-a", "Softer than “quiero”. Use it with strangers."],
+  "how much does it cost": ["¿cuánto cuesta?", "KWAN-to KWES-ta", ""],
+  "im just looking": ["solo estoy mirando", "SO-lo es-TOY mi-RAN-do", "The polite exit from a shop."],
+  "can you repeat that": ["¿puede repetirlo?", "PWE-de re-pe-TIR-lo", ""],
+  "to run errands": ["hacer recados", "a-SER re-KA-dos", ""],
+  "hangover": ["resaca", "re-SA-ka", ""],
+  "it doesnt matter": ["no importa", "no im-POR-ta", ""],
+  "borrow": ["pedir prestado", "pe-DIR pres-TA-do", "Spanish splits borrow and lend into two verbs."],
+  "receipt": ["el recibo", "el re-SI-bo", ""],
+  "tomorrow morning": ["mañana por la mañana", "ma-NYA-na por la ma-NYA-na", ""],
+  "im lost": ["estoy perdido", "es-TOY per-DI-do", ""],
+  "keys": ["las llaves", "las YA-bes", ""],
+  "on purpose": ["a propósito", "a pro-PO-si-to", ""]
+};
+const strip = s => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z\s]/g, "").trim();
+
+class Component extends DCLogic {
+  state = {
+    screen: "signin", provider: "Apple",
+    source: "English", target: "__default",
+    query: "", justSaved: false,
+    cards: [
+      { en: "the bill please", es: "la cuenta, por favor", when: "due now", due: true },
+      { en: "can you repeat that", es: "¿puede repetirlo?", when: "due now", due: true },
+      { en: "borrow", es: "pedir prestado", when: "due now", due: true },
+      { en: "it doesn’t matter", es: "no importa", when: "in 2 days", due: false },
+      { en: "receipt", es: "el recibo", when: "in 4 days", due: false },
+      { en: "hangover", es: "resaca", when: "in 9 days", due: false }
+    ],
+    ri: 0, answer: "", grade: null, dictating: false, right: 0, wrong: 0,
+    talking: false
+  };
+
+  dueCards() { return this.state.cards.filter(c => c.due); }
+  go = s => () => this.setState({ screen: s });
+
+  renderVals() {
+    const st = this.state;
+    const q = strip(st.query);
+    const hit = DICT[q];
+    const target = st.target === "__default" ? (this.props.defaultTarget ?? "Spanish") : st.target;
+    const showProgress = this.props.showProgress ?? true;
+    const due = this.dueCards();
+    const card = due[st.ri] || due[0] || st.cards[0];
+    const graded = st.grade !== null;
+
+    const nav = [
+      { key: "lookup", icon: "ph ph-magnifying-glass", label: "Look up" },
+      { key: "deck", icon: "ph ph-cards-three", label: "Deck" },
+      { key: "review", icon: "ph ph-check-square-offset", label: "Review" },
+      { key: "voice", icon: "ph ph-waveform", label: "Talk" },
+      { key: "settings", icon: "ph ph-user", label: "You" }
+    ].map(n => ({
+      ...n,
+      color: st.screen === n.key ? "var(--color-accent-300)" : "var(--color-neutral-700)",
+      go: () => this.setState({ screen: n.key, ...(n.key === "review" ? { ri: 0, answer: "", grade: null, right: 0, wrong: 0 } : {}) })
+    }));
+
+    const check = () => {
+      const ok = strip(st.answer) === strip(card.es);
+      this.setState(s => ({ grade: ok ? "right" : "wrong", dictating: false, right: s.right + (ok ? 1 : 0), wrong: s.wrong + (ok ? 0 : 1) }));
+    };
+    const next = () => {
+      if (st.ri + 1 >= due.length) this.setState({ screen: "summary" });
+      else this.setState(s => ({ ri: s.ri + 1, answer: "", grade: null, dictating: false }));
+    };
+
+    return {
+      isSignin: st.screen === "signin", isLookup: st.screen === "lookup", isDeck: st.screen === "deck",
+      isReview: st.screen === "review", isSummary: st.screen === "summary", isVoice: st.screen === "voice",
+      isSettings: st.screen === "settings", showNav: st.screen !== "signin",
+      nav, source: st.source, target,
+      signIn: () => this.setState({ screen: "lookup" }),
+      signOut: () => this.setState({ screen: "signin", query: "" }),
+      goReview: e => { if (e && e.preventDefault) e.preventDefault(); this.setState({ screen: "review", ri: 0, answer: "", grade: null, right: 0, wrong: 0 }); },
+      goDeck: this.go("deck"), goLookup: this.go("lookup"), goVoice: this.go("voice"),
+      setSource: e => this.setState({ source: e.target.value }),
+      setTarget: e => this.setState({ target: e.target.value }),
+      swapLangs: () => this.setState(s => ({ source: s.target, target: s.source })),
+
+      query: st.query,
+      setQuery: e => this.setState({ query: e.target.value, justSaved: false }),
+      hasResult: !!hit,
+      translation: hit ? hit[0] : "",
+      pronunciation: hit ? hit[1] : "",
+      hasNotes: !!(hit && hit[2]),
+      note: hit ? hit[2] : "",
+      saveLabel: st.justSaved ? "Saved" : "Save card",
+      saveCard: () => {
+        if (!hit || st.justSaved) return;
+        this.setState(s => ({ justSaved: true, cards: [{ en: s.query.trim(), es: hit[0], when: "due now", due: true }, ...s.cards] }));
+      },
+      showRecent: !hit,
+      recent: st.cards.slice(0, 4).map(c => ({ en: c.en, es: c.es, open: () => this.setState({ query: c.en, justSaved: true }) })),
+
+      cards: st.cards.map(c => ({ ...c, dot: c.due ? "var(--color-accent)" : "var(--color-neutral-800)" })),
+      cardCount: st.cards.length, dueCount: due.length, showDueBadge: showProgress && due.length > 0,
+
+      promptLang: st.source, promptText: card ? card.en : "",
+      answer: st.answer,
+      setAnswer: e => this.setState({ answer: e.target.value }),
+      onAnswerKey: e => { if (e.key === "Enter") { graded ? next() : check(); } },
+      answerPlaceholder: st.dictating ? "Listening…" : "Type or speak in " + target,
+      answerBorder: graded ? (st.grade === "right" ? "var(--color-accent)" : "var(--color-neutral-500)") : "var(--color-neutral-800)",
+      answerColor: graded && st.grade === "wrong" ? "var(--color-neutral-500)" : "var(--color-text)",
+      micBorder: st.dictating ? "var(--color-accent)" : "var(--color-neutral-800)",
+      micColor: st.dictating ? "var(--color-accent-300)" : "var(--color-neutral-600)",
+      toggleDictate: () => {
+        if (st.dictating) return this.setState({ dictating: false });
+        this.setState({ dictating: true });
+        setTimeout(() => this.setState(s => (s.dictating ? { dictating: false, answer: card.es } : {})), 1400);
+      },
+      isGraded: graded,
+      gradeNote: graded ? (st.grade === "right" ? "Correct — next in 4 days." : card.es) : "",
+      primaryLabel: graded ? (st.ri + 1 >= due.length ? "Finish" : "Next") : "Check",
+      primaryAction: () => (graded ? next() : check()),
+      progressPct: Math.round(((st.ri + (graded ? 1 : 0)) / Math.max(due.length, 1)) * 100) + "%",
+      reviewCounter: Math.min(st.ri + 1, due.length) + "/" + due.length,
+
+      summaryHeadline: st.wrong === 0 ? "All clear." : "Three to see again.",
+      rightCount: st.right, wrongCount: st.wrong, nextDue: "4d",
+
+      accountName: "you@icloud.com", accountProvider: "Signed in with " + st.provider,
+      langPair: st.source + " → " + target,
+
+      voiceWords: st.talking ? "weaving 3 cards" : "3 cards ready",
+      voiceStatus: st.talking ? "…entonces, ¿me puedes pedir la cuenta?" : "Tap to talk",
+      voiceHint: st.talking ? "Tap to end" : "It will quiz you in " + target,
+      toggleVoice: () => this.setState(s => ({ talking: !s.talking })),
+      orbStyle: [
+        "width:132px;height:132px;border-radius:50%;cursor:pointer;border:1px solid var(--color-accent);",
+        "background:radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--color-accent) 42%, transparent), transparent 68%);",
+        st.talking
+          ? "box-shadow:0 0 70px color-mix(in srgb, var(--color-accent) 55%, transparent);animation:orbPulse 2.1s ease-in-out infinite;"
+          : "box-shadow:0 0 28px color-mix(in srgb, var(--color-accent) 22%, transparent);"
+      ].join(""),
+      ringStyle: st.talking
+        ? "position:absolute;width:132px;height:132px;border-radius:50%;border:1px solid color-mix(in srgb, var(--color-accent) 60%, transparent);animation:orbRing 2.6s ease-out infinite;pointer-events:none"
+        : "display:none"
+    };
+  }
+}
+
+</script>
+</body>
+</html>

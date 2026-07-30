@@ -1,6 +1,10 @@
 {
   "compilerOptions": {
     "composite": true,
+    // composite must emit, but the emitted vite.config.js/.d.ts must NOT land
+    // next to the source or they shadow vite.config.ts when Vite loads config.
+    // Send them into gitignored node_modules instead.
+    "outDir": "./node_modules/.tmp/tsconfig-node",
     "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "bundler",

@@ -1,0 +1,495 @@
+/* Landing page — scoped cobalt theme. Tokens live here (NOT global :root) so the
+   rest of the app keeps the existing Nocturne styling. */
+.lp {
+  --lp-bg: #2c4ebd;
+  --lp-on-bg: #ffffff;
+  --lp-on-bg-muted: rgba(255, 255, 255, 0.72);
+  --lp-surface: #fbfaf7;
+  --lp-on-surface: #1b1e27;
+  --lp-on-surface-muted: #5b5f6c;
+  --lp-btn: #ffffff;
+  --lp-btn-text: #1b1e27;
+  --lp-radius-pill: 999px;
+  --lp-radius-lg: 20px;
+  --lp-maxw: 1080px;
+
+  background: var(--lp-bg);
+  color: var(--lp-on-bg);
+  font-family: 'Inter', system-ui, sans-serif;
+  line-height: 1.5;
+}
+
+.lp * {
+  box-sizing: border-box;
+}
+
+.lp-container {
+  width: 100%;
+  max-width: var(--lp-maxw);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* Buttons */
+.lp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 52px;
+  padding: 0 28px;
+  border-radius: var(--lp-radius-pill);
+  background: var(--lp-btn);
+  color: var(--lp-btn-text);
+  font-weight: 600;
+  font-size: 16px;
+  text-decoration: none;
+  border: none;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
+}
+.lp-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+.lp-btn--sm {
+  height: 40px;
+  padding: 0 18px;
+  font-size: 14px;
+}
+.lp-link {
+  color: var(--lp-on-surface-muted);
+  text-decoration: none;
+  font-weight: 500;
+}
+.lp-link--light {
+  color: var(--lp-on-bg-muted);
+}
+.lp-link:hover {
+  opacity: 0.85;
+}
+
+/* Nav */
+.lp-nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  /* Full-bleed cobalt bar so the white nav text stays legible over the white
+     sections below the hero (a transparent nav went invisible on scroll). */
+  background: var(--lp-bg);
+  border-bottom: 1px solid color-mix(in srgb, #fff 12%, transparent);
+}
+.lp-nav__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: var(--lp-maxw);
+  margin: 0 auto;
+  padding: 16px 24px;
+}
+.lp-nav__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--lp-on-bg);
+  font-weight: 700;
+  font-size: 20px;
+  text-decoration: none;
+  letter-spacing: -0.01em;
+}
+.lp-nav__actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.lp-nav__actions .lp-link {
+  color: var(--lp-on-bg-muted);
+}
+.lp-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--lp-on-bg);
+}
+
+/* Hero */
+.lp-hero {
+  max-width: var(--lp-maxw);
+  margin: 0 auto;
+  padding: 64px 24px 88px;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 48px;
+  align-items: center;
+}
+.lp-hero__title {
+  font-size: clamp(36px, 5vw, 60px);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  margin: 0 0 20px;
+}
+.lp-hero__sub {
+  font-size: 19px;
+  color: var(--lp-on-bg-muted);
+  max-width: 42ch;
+  margin: 0 0 32px;
+}
+.lp-hero__actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.lp-hero__micro {
+  margin: 18px 0 0;
+  font-size: 13px;
+  color: var(--lp-on-bg-muted);
+}
+.lp-hero__art {
+  display: flex;
+  justify-content: center;
+}
+.lp-phone {
+  width: 100%;
+  max-width: 320px;
+  background: var(--lp-surface);
+  color: var(--lp-on-surface);
+  border-radius: var(--lp-radius-lg);
+  padding: 28px 24px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+}
+.lp-phone__label {
+  font-size: 14px;
+  color: var(--lp-on-surface-muted);
+  margin: 0 0 6px;
+}
+.lp-phone__answer {
+  font-size: 26px;
+  font-weight: 600;
+  margin: 0 0 6px;
+  letter-spacing: -0.01em;
+}
+.lp-phone__ipa {
+  font-size: 14px;
+  color: var(--lp-on-surface-muted);
+  margin: 0 0 20px;
+}
+.lp-phone__chip {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lp-bg);
+  background: color-mix(in srgb, var(--lp-bg) 14%, transparent);
+  padding: 6px 12px;
+  border-radius: var(--lp-radius-pill);
+}
+
+/* Reframe band */
+.lp-reframe {
+  background: var(--lp-bg);
+  padding: 8px 0 80px;
+}
+.lp-reframe p {
+  font-size: clamp(22px, 3vw, 32px);
+  line-height: 1.35;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  max-width: 34ch;
+  margin: 0 auto;
+  text-align: center;
+  color: var(--lp-on-bg);
+}
+
+/* Generic section */
+.lp-section {
+  padding: 88px 0;
+}
+.lp-section--surface {
+  background: var(--lp-surface);
+  color: var(--lp-on-surface);
+}
+.lp-section--cobalt {
+  background: var(--lp-bg);
+  color: var(--lp-on-bg);
+}
+.lp-section__title {
+  font-size: clamp(28px, 4vw, 40px);
+  letter-spacing: -0.02em;
+  font-weight: 700;
+  margin: 0 0 40px;
+}
+
+/* Steps */
+.lp-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+}
+.lp-step {
+  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--lp-on-surface) 10%, transparent);
+  border-radius: var(--lp-radius-lg);
+  padding: 28px;
+}
+.lp-step__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--lp-radius-pill);
+  background: var(--lp-bg);
+  color: #fff;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+.lp-step__title {
+  font-size: 20px;
+  margin: 0 0 8px;
+}
+.lp-step__body {
+  color: var(--lp-on-surface-muted);
+  margin: 0;
+}
+
+/* Feature rows (alternating surface/cobalt via nth-child) */
+.lp-feature {
+  padding: 80px 0;
+}
+.lp-feature:nth-child(even) {
+  background: var(--lp-surface);
+  color: var(--lp-on-surface);
+}
+.lp-feature__inner {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: center;
+}
+.lp-feature--flip .lp-feature__copy {
+  order: 2;
+}
+.lp-feature__title {
+  font-size: clamp(26px, 3.4vw, 36px);
+  letter-spacing: -0.02em;
+  margin: 0 0 16px;
+}
+.lp-feature__body {
+  font-size: 18px;
+  color: color-mix(in srgb, currentColor 70%, transparent);
+  max-width: 46ch;
+  margin: 0;
+}
+.lp-feature__art {
+  min-height: 260px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Feature mock cards (illustrative app screens) */
+.lp-mock {
+  width: 100%;
+  max-width: 360px;
+  background: var(--lp-surface);
+  color: var(--lp-on-surface);
+  border-radius: var(--lp-radius-lg);
+  border: 1px solid color-mix(in srgb, var(--lp-on-surface) 10%, transparent);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.lp-mock__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--lp-bg) 4%, #fff);
+  border: 1px solid color-mix(in srgb, var(--lp-on-surface) 8%, transparent);
+}
+.lp-mock__en {
+  margin: 0;
+  font-size: 13px;
+  color: var(--lp-on-surface-muted);
+}
+.lp-mock__es {
+  margin: 2px 0 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.lp-mock__chip {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--lp-bg);
+  background: color-mix(in srgb, var(--lp-bg) 14%, transparent);
+  padding: 5px 10px;
+  border-radius: var(--lp-radius-pill);
+  white-space: nowrap;
+}
+.lp-mock__sched {
+  display: grid;
+  grid-template-columns: 1fr 88px auto;
+  align-items: center;
+  gap: 12px;
+}
+.lp-mock--schedule .lp-mock__es {
+  font-size: 14px;
+}
+.lp-mock__bar {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--lp-on-surface) 12%, transparent);
+  overflow: hidden;
+}
+.lp-mock__fill {
+  display: block;
+  height: 100%;
+  background: var(--lp-bg);
+  border-radius: 999px;
+}
+.lp-mock__when {
+  font-size: 12px;
+  color: var(--lp-on-surface-muted);
+  white-space: nowrap;
+}
+.lp-mock--voice {
+  align-items: center;
+  text-align: center;
+}
+.lp-mock__prompt {
+  margin: 4px 0 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+.lp-mock__wave {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  margin: 6px 0;
+}
+.lp-mock__wave span {
+  width: 4px;
+  border-radius: 999px;
+  background: var(--lp-bg);
+}
+.lp-mock__chip--live {
+  color: var(--lp-bg);
+}
+
+/* Languages + final CTA */
+.lp-langs,
+.lp-final {
+  text-align: center;
+}
+.lp-langs {
+  border-top: 1px solid color-mix(in srgb, var(--lp-on-surface) 8%, transparent);
+}
+.lp-langs__sub,
+.lp-final__sub {
+  font-size: 18px;
+  margin: 0 auto 28px;
+  max-width: 40ch;
+}
+.lp-langs__sub {
+  color: var(--lp-on-surface-muted);
+}
+.lp-final__sub {
+  color: var(--lp-on-bg-muted);
+}
+.lp-final__title {
+  font-size: clamp(32px, 5vw, 52px);
+  letter-spacing: -0.02em;
+  margin: 0 0 16px;
+}
+
+/* Footer */
+.lp-footer {
+  background: #10163a;
+  color: var(--lp-on-bg);
+  padding: 40px 0;
+}
+.lp-footer__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.lp-footer__brand {
+  font-weight: 700;
+  margin-right: 12px;
+}
+.lp-footer__tag {
+  color: var(--lp-on-bg-muted);
+  font-size: 14px;
+}
+.lp-footer__links {
+  display: flex;
+  gap: 20px;
+}
+.lp-footer__links .lp-link {
+  color: var(--lp-on-bg-muted);
+}
+.lp-footer__copy {
+  color: var(--lp-on-bg-muted);
+  font-size: 13px;
+}
+
+/* Legal pages (privacy / terms) */
+.lp-legal {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 72px 24px 96px;
+  min-height: 100vh;
+  background: var(--lp-bg);
+  color: var(--lp-on-bg);
+}
+.lp-legal h1 {
+  font-size: clamp(32px, 5vw, 44px);
+  letter-spacing: -0.02em;
+  margin: 0 0 8px;
+}
+.lp-legal h2 {
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  margin: 40px 0 10px;
+}
+.lp-legal p {
+  color: var(--lp-on-bg-muted);
+  margin: 0 0 12px;
+  line-height: 1.6;
+}
+.lp-legal__meta {
+  font-size: 14px;
+  margin-bottom: 28px;
+}
+.lp-legal a {
+  color: var(--lp-on-bg);
+  text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 860px) {
+  .lp-hero,
+  .lp-feature__inner {
+    grid-template-columns: 1fr;
+  }
+  .lp-hero__art {
+    order: -1;
+  }
+  .lp-feature--flip .lp-feature__copy {
+    order: 0;
+  }
+  .lp-steps {
+    grid-template-columns: 1fr;
+  }
+}

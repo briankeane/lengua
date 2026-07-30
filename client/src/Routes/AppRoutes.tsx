@@ -2,9 +2,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import App from '../App';
 import { AuthProvider } from '../Contexts/AuthProvider';
-import AuthPage from '../Pages/AuthPage/AuthPage';
-import DashboardPage from '../Pages/DashboardPage/DashboardPage';
-import ProtectedRoute from './ProtectedRoute';
+import { routeChildren } from './routeChildren';
 
 const router = createBrowserRouter([
   {
@@ -16,28 +14,7 @@ const router = createBrowserRouter([
         </AuthProvider>
       </GoogleOAuthProvider>
     ),
-    children: [
-      {
-        index: true,
-        element: <AuthPage />,
-      },
-      {
-        path: 'login',
-        element: <AuthPage />,
-      },
-      {
-        path: 'signup',
-        element: <AuthPage />,
-      },
-      {
-        path: 'dashboard',
-        element: (
-          <ProtectedRoute>
-            <DashboardPage />
-          </ProtectedRoute>
-        ),
-      },
-    ],
+    children: routeChildren,
   },
 ]);
 

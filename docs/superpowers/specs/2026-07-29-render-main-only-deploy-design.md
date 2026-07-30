@@ -51,7 +51,7 @@ verified image push. A GitHub Actions `concurrency` group serializes pushes to
   - `healthCheckPath: /v1/healthCheck`
   - `autoDeployTrigger: off`
   - `envVars:` `NODE_ENV=production`, `PORT=10020`, `DATABASE_URL` via `fromDatabase`
-    (`property: connectionString`), `- fromGroup: production`
+    (`property: connectionString`), `- fromGroup: lengua-production`
 - **`production-worker`** (`type: worker`, `runtime: image`):
   - same image
   - `dockerCommand: node dist/worker.js`
@@ -107,7 +107,7 @@ workflow and `render.yaml` so CI never pushes to one path while Render pulls ano
 `RENDER_PRODUCTION_WORKER_SERVICE_ID`, `GHCR_USERNAME` (`briankeane`), `GHCR_TOKEN`
 (PAT with `write:packages`).
 
-**Render `production` env group:** `JWT_SECRET` (add `REDIS_URL` later if/when Redis is
+**Render `lengua-production` env group:** `JWT_SECRET` (add `REDIS_URL` later if/when Redis is
 added). `DATABASE_URL` comes from `fromDatabase`; `NODE_ENV`/`PORT` are set inline in
 `render.yaml`.
 
@@ -121,7 +121,7 @@ exist yet" chicken-and-egg:
    (Render deploy steps are skipped automatically until `RENDER_API_KEY` exists.)
 2. Make the GHCR package **public** (Packages → package → Package settings → Change
    visibility), **or** create a Render **registry credential** for GHCR.
-3. Create the Render workspace/project; create the `production` env group with
+3. Create the Render workspace/project; create the `lengua-production` env group with
    `JWT_SECRET`.
 4. Create a Blueprint from `render.yaml` → provisions the Postgres + both services.
    (If the image is private, select the registry credential when prompted.)

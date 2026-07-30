@@ -22,8 +22,12 @@ The three-beat loop, straight from the app: **Look it up → Keep it → Say it 
 
 ## Positioning & Copy
 
-- **Target learner:** broad, but the page leans on the "I understand but can't
-  *speak*" pain and the "generic courses teach words I'll never use" frustration.
+- **Target learner:** the **intermediate learner stuck on the plateau** — past the
+  basics, understands a lot, but can't break through because textbook vocabulary is
+  behind them and progress now depends on the specific words of their own life. The
+  page speaks to that plateau while making clear Lengua works for beginners and
+  advanced learners too. Leans on the "I understand but can't *speak*" pain and the
+  "generic courses teach words I'll never use" frustration.
 - **H1:** Exactly the words you need, exactly when you need them.
 - **Subhead:** Lengua learns your level and your life, so you're always practicing
   exactly the vocabulary you need next — never the words you don't.

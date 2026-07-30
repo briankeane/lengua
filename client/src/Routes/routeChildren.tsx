@@ -9,8 +9,8 @@ export const routeChildren: RouteObject[] = [
   { index: true, element: <LandingPage /> },
   { path: 'login', element: <AuthPage /> },
   { path: 'signup', element: <AuthPage /> },
-  { path: 'privacy', element: <LegalPage title="Privacy Policy" /> },
-  { path: 'terms', element: <LegalPage title="Terms of Service" /> },
+  { path: 'privacy', element: <LegalPage kind="privacy" /> },
+  { path: 'terms', element: <LegalPage kind="terms" /> },
   {
     path: 'dashboard',
     element: (

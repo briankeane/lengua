@@ -1,4 +1,5 @@
 import './LandingPage.css';
+import { usePageMeta } from '../../hooks/usePageMeta';
 import { LANDING } from './content';
 import FeatureSection from './FeatureSection';
 import FinalCta from './FinalCta';
@@ -9,6 +10,10 @@ import LandingNav from './LandingNav';
 import Languages from './Languages';
 
 export default function LandingPage() {
+  // Reset title/canonical to the landing defaults (index.html carries them,
+  // but a client-side visit from a legal page would otherwise keep those).
+  usePageMeta({ title: 'Lengua — The translator that helps you learn', path: '/' });
+
   return (
     <div className="lp">
       <LandingNav />

@@ -8,8 +8,10 @@ const CHROMELESS_ROUTES = ['/', '/privacy', '/terms'];
 
 export default function App() {
   const { pathname } = useLocation();
+  // Normalize a trailing slash (e.g. "/privacy/") so it still matches.
+  const normalized = pathname === '/' ? pathname : pathname.replace(/\/+$/, '');
 
-  if (CHROMELESS_ROUTES.includes(pathname)) {
+  if (CHROMELESS_ROUTES.includes(normalized)) {
     return <Outlet />;
   }
 

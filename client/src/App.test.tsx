@@ -11,6 +11,7 @@ function renderAppAt(path: string) {
         <Routes>
           <Route element={<App />}>
             <Route index element={<div>home</div>} />
+            <Route path="privacy" element={<div>privacy</div>} />
             <Route path="dashboard" element={<div>dash</div>} />
           </Route>
         </Routes>
@@ -22,6 +23,11 @@ function renderAppAt(path: string) {
 describe('App chrome', () => {
   it('hides the global navbar on full-bleed marketing routes', () => {
     const { container } = renderAppAt('/');
+    expect(container.querySelector('.navbar')).toBeNull();
+  });
+
+  it('stays chromeless on a trailing-slash marketing route', () => {
+    const { container } = renderAppAt('/privacy/');
     expect(container.querySelector('.navbar')).toBeNull();
   });
 

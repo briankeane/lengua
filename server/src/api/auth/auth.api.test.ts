@@ -3,6 +3,7 @@ import * as sinon from 'sinon';
 import request from 'supertest';
 import * as bcrypt from 'bcrypt';
 import { LoginTicket, OAuth2Client, TokenPayload } from 'google-auth-library';
+import { UniqueConstraintError } from 'sequelize';
 import app from '../../server';
 import User from '../../db/models/user.model';
 import config from '../../config/config';
@@ -203,6 +204,29 @@ describe('Auth API', function () {
       assert.equal(user?.googleId, 'google-user-id-123');
       const count = await User.count();
       assert.equal(count, 1);
+    });
+
+    it('links googleId when recovering from a create race', async function () {
+      // A concurrent password signup wins the create race: the Google create
+      // hits a unique-constraint error, and the recovery re-fetch finds an
+      // email-only row that must still be linked to the Google sub.
+      const raced = await User.create({ email: 'race@example.com', firstName: 'Race' });
+
+      const findOne = sinon.stub(User, 'findOne');
+      findOne.onCall(0).resolves(null); // by googleId, pre-create
+      findOne.onCall(1).resolves(null); // by email, pre-create
+      findOne.onCall(2).resolves(null); // recovery by googleId
+      findOne.onCall(3).resolves(raced); // recovery by email
+      sinon.stub(User, 'create').rejects(new UniqueConstraintError({}));
+
+      stubGoogle(basePayload({ email: 'race@example.com', sub: 'race-sub' }));
+
+      const res = await request(app).post('/v1/auth/google').send({ code: 'auth-code' });
+
+      assert.equal(res.status, 200);
+      findOne.restore();
+      await raced.reload();
+      assert.equal(raced.googleId, 'race-sub');
     });
 
     it('rejects when the email is already linked to a different Google account', async function () {

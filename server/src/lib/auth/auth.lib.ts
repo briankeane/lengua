@@ -140,6 +140,11 @@ async function upsertGoogleUser(payload: TokenPayload): Promise<User> {
             'This email is already linked to a different Google account',
           );
         }
+        await existing.update({
+          googleId: sub,
+          verifiedEmail: existing.verifiedEmail ?? email,
+          profileImageUrl: existing.profileImageUrl ?? payload.picture,
+        });
         return existing;
       }
     }

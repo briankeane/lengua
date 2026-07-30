@@ -23,7 +23,7 @@ describe('routing', () => {
   it('renders the landing page at /', async () => {
     await renderAt('/');
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-      /exactly the words you need/i,
+      /translator that helps you learn/i,
     );
   });
 

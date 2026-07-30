@@ -74,13 +74,18 @@
   position: sticky;
   top: 0;
   z-index: 10;
+  /* Full-bleed cobalt bar so the white nav text stays legible over the white
+     sections below the hero (a transparent nav went invisible on scroll). */
+  background: var(--lp-bg);
+  border-bottom: 1px solid color-mix(in srgb, #fff 12%, transparent);
+}
+.lp-nav__inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   max-width: var(--lp-maxw);
   margin: 0 auto;
-  padding: 18px 24px;
-  backdrop-filter: blur(6px);
+  padding: 16px 24px;
 }
 .lp-nav__brand {
   display: inline-flex;
@@ -182,14 +187,16 @@
 /* Reframe band */
 .lp-reframe {
   background: var(--lp-bg);
-  padding: 8px 0 64px;
+  padding: 8px 0 80px;
 }
 .lp-reframe p {
-  font-size: clamp(22px, 3vw, 30px);
-  line-height: 1.3;
+  font-size: clamp(22px, 3vw, 32px);
+  line-height: 1.35;
   font-weight: 500;
   letter-spacing: -0.01em;
-  max-width: 24ch;
+  max-width: 34ch;
+  margin: 0 auto;
+  text-align: center;
   color: var(--lp-on-bg);
 }
 
@@ -277,10 +284,105 @@
   margin: 0;
 }
 .lp-feature__art {
-  height: 260px;
+  min-height: 260px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Feature mock cards (illustrative app screens) */
+.lp-mock {
+  width: 100%;
+  max-width: 360px;
+  background: var(--lp-surface);
+  color: var(--lp-on-surface);
   border-radius: var(--lp-radius-lg);
-  background: linear-gradient(140deg, var(--lp-bg), #5566d8);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  border: 1px solid color-mix(in srgb, var(--lp-on-surface) 10%, transparent);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.lp-mock__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--lp-bg) 4%, #fff);
+  border: 1px solid color-mix(in srgb, var(--lp-on-surface) 8%, transparent);
+}
+.lp-mock__en {
+  margin: 0;
+  font-size: 13px;
+  color: var(--lp-on-surface-muted);
+}
+.lp-mock__es {
+  margin: 2px 0 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.lp-mock__chip {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--lp-bg);
+  background: color-mix(in srgb, var(--lp-bg) 14%, transparent);
+  padding: 5px 10px;
+  border-radius: var(--lp-radius-pill);
+  white-space: nowrap;
+}
+.lp-mock__sched {
+  display: grid;
+  grid-template-columns: 1fr 88px auto;
+  align-items: center;
+  gap: 12px;
+}
+.lp-mock--schedule .lp-mock__es {
+  font-size: 14px;
+}
+.lp-mock__bar {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--lp-on-surface) 12%, transparent);
+  overflow: hidden;
+}
+.lp-mock__fill {
+  display: block;
+  height: 100%;
+  background: var(--lp-bg);
+  border-radius: 999px;
+}
+.lp-mock__when {
+  font-size: 12px;
+  color: var(--lp-on-surface-muted);
+  white-space: nowrap;
+}
+.lp-mock--voice {
+  align-items: center;
+  text-align: center;
+}
+.lp-mock__prompt {
+  margin: 4px 0 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+.lp-mock__wave {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  margin: 6px 0;
+}
+.lp-mock__wave span {
+  width: 4px;
+  border-radius: 999px;
+  background: var(--lp-bg);
+}
+.lp-mock__chip--live {
+  color: var(--lp-bg);
 }
 
 /* Languages + final CTA */
@@ -288,12 +390,20 @@
 .lp-final {
   text-align: center;
 }
+.lp-langs {
+  border-top: 1px solid color-mix(in srgb, var(--lp-on-surface) 8%, transparent);
+}
 .lp-langs__sub,
 .lp-final__sub {
-  color: var(--lp-on-bg-muted);
   font-size: 18px;
   margin: 0 auto 28px;
   max-width: 40ch;
+}
+.lp-langs__sub {
+  color: var(--lp-on-surface-muted);
+}
+.lp-final__sub {
+  color: var(--lp-on-bg-muted);
 }
 .lp-final__title {
   font-size: clamp(32px, 5vw, 52px);

@@ -5,14 +5,14 @@ export const LANDING = {
     cta: 'Get started',
   },
   hero: {
-    title: 'Exactly the words you need, exactly when you need them.',
-    sub: "Lengua learns your level and your life, so you're always practicing exactly the vocabulary you need next — never the words you don't.",
+    title: 'The translator that helps you learn.',
+    sub: 'The translator you already reach for — except Lengua remembers every word you look up and quizzes you out loud until it’s yours. The words you need are the ones you’re already searching for.',
     primaryCta: 'Get started — free',
     secondaryCta: 'See how it works',
     micro: 'No password. No email. Just Google.',
   },
   reframe:
-    "You understand far more than you can say. That's the plateau — and it's not more grammar drills that get you past it. It's the specific words of your own life, learned until you can speak them.",
+    'Every translator forgets the moment you close it. Tomorrow you look up the same word again. Lengua helps you learn what you look up.',
   how: {
     heading: 'Look it up. Keep it. Say it back.',
     steps: [
@@ -32,25 +32,28 @@ export const LANDING = {
   },
   features: [
     {
-      title: 'Learn from your life, not a textbook',
-      body: 'Your deck is built from the words you actually ran into — never a generic list. Every card is something you already needed once and will need again.',
+      art: 'deck',
+      title: 'The words you look up are the words you need',
+      body: 'Your deck is built from the words you actually looked up — never a generic list. Every card is something you already needed once and will need again.',
     },
     {
-      title: 'Always the right word at the right level',
+      art: 'schedule',
+      title: 'A translator that actually remembers',
       body: "Spaced repetition tracks what's sticking and what's slipping, surfacing each word at the exact moment it's about to fade. It scales from your first hundred words to your ten-thousandth.",
     },
     {
-      title: "Say it out loud, so it's there when you need it",
+      art: 'voice',
+      title: 'And it quizzes you back — out loud',
       body: "Reading a word isn't knowing it. Voice practice makes you produce the word from memory — so it's ready when you're mid-sentence and reaching for it.",
     },
   ],
   languages: {
-    heading: 'Start in Spanish, Portuguese, or Japanese.',
+    heading: 'Learning Spanish? Start today.',
     sub: 'More languages on the way.',
   },
   finalCta: {
-    heading: 'Break through the plateau.',
-    sub: 'The words you need are the ones you keep reaching for. Start keeping them.',
+    heading: 'Meet the translator that teaches you.',
+    sub: 'The words you need are the ones you keep looking up. Start keeping them.',
     cta: 'Get started — free',
   },
   footer: {

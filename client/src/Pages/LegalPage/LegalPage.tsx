@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 
 export default function LegalPage({ title }: { title: string }) {
   return (
-    <main className="lp-legal">
+    <main className="lp lp-legal">
       <h1>{title}</h1>
       <p>
         We&rsquo;re finalizing this document. Questions in the meantime?{' '}

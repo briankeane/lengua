@@ -339,7 +339,13 @@
   max-width: 640px;
   margin: 0 auto;
   padding: 80px 24px;
-  color: var(--color-text);
+  min-height: 100vh;
+  background: var(--lp-bg);
+  color: var(--lp-on-bg);
+}
+.lp-legal a {
+  color: var(--lp-on-bg);
+  text-decoration: underline;
 }
 
 /* Responsive */

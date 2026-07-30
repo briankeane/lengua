@@ -61,6 +61,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [handleAuthResponse],
   );
 
+  const signInWithGoogle = useCallback(
+    async (code: string) => {
+      const response = await authService.googleAuth(code);
+      handleAuthResponse(response);
+    },
+    [handleAuthResponse],
+  );
+
   const loginWithToken = useCallback((newToken: string, newUser: AuthUser) => {
     localStorage.setItem('token', newToken);
     localStorage.setItem('user', JSON.stringify(newUser));
@@ -82,10 +90,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       login,
       signup,
+      signInWithGoogle,
       loginWithToken,
       logout,
     }),
-    [user, token, loading, login, signup, loginWithToken, logout],
+    [user, token, loading, login, signup, signInWithGoogle, loginWithToken, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

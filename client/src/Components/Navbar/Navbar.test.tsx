@@ -4,10 +4,9 @@ import { renderWithProviders } from '../../test/testHelpers';
 import Navbar from './Navbar';
 
 describe('Navbar', () => {
-  it('shows login and signup links when not authenticated', () => {
+  it('shows a sign in link when not authenticated', () => {
     renderWithProviders(<Navbar />);
-    expect(screen.getByRole('link', { name: 'Log In' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Sign Up' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Sign In' })).toBeInTheDocument();
   });
 
   it('shows app brand link', () => {

@@ -39,7 +39,7 @@ export class Config implements Partial<EnvVars> {
   get BASE_URL(): string {
     switch (this.env) {
       case Environments.PRODUCTION:
-        return 'https://your-production-client-url.com';
+        return 'https://api.lengua-app.com';
       case Environments.DEVELOPMENT:
         return 'http://localhost:10020';
       case Environments.TEST:
@@ -52,7 +52,7 @@ export class Config implements Partial<EnvVars> {
   get CLIENT_BASE_URL(): string {
     switch (this.env) {
       case Environments.PRODUCTION:
-        return 'https://your-production-server-url.com';
+        return 'https://www.lengua-app.com';
       case Environments.DEVELOPMENT:
         return 'http://localhost:3000';
       case Environments.TEST:
@@ -68,7 +68,7 @@ export class Config implements Partial<EnvVars> {
       case Environments.TEST:
         return 'http://localhost:10020/v1/auth/google/web/authorize';
       case Environments.PRODUCTION: // google does not allow testing from localhost!
-        return 'https://your-production-url/v1/auth/google/web/authorize';
+        return 'https://api.lengua-app.com/v1/auth/google/web/authorize';
       default:
         throw new Error(`Unknown environment: ${this.env}`);
     }

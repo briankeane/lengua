@@ -8,6 +8,6 @@ router.post('/signup', checkBodyFor(['email', 'password', 'firstName']), handleS
 
 router.post('/login', checkBodyFor(['email', 'password']), handleLogin);
 
-router.post('/google', checkBodyFor(['idToken']), handleGoogleSignIn);
+router.post('/google', checkBodyFor(['code']), handleGoogleSignIn);
 
 export default router;

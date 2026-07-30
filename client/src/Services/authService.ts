@@ -35,9 +35,7 @@ export async function login(params: LoginParams): Promise<AuthResponse> {
   return response.data;
 }
 
-export async function googleAuth(credential: string): Promise<AuthResponse> {
-  const response = await apiClient.post<AuthResponse>('/v1/auth/google', {
-    credential,
-  });
+export async function googleAuth(code: string): Promise<AuthResponse> {
+  const response = await apiClient.post<AuthResponse>('/v1/auth/google', { code });
   return response.data;
 }

@@ -15,6 +15,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   declare email: string;
   declare verifiedEmail: CreationOptional<string>;
   declare passwordHash: CreationOptional<string>;
+  declare googleId: CreationOptional<string>;
   declare profileImageUrl: CreationOptional<string>;
   declare role: CreationOptional<'admin' | 'user' | 'guest'>;
   declare createdAt: CreationOptional<Date>;
@@ -55,6 +56,10 @@ User.init(
     },
     verifiedEmail: DataTypes.STRING,
     passwordHash: DataTypes.STRING,
+    googleId: {
+      type: DataTypes.STRING,
+      unique: true,
+    },
     profileImageUrl: DataTypes.STRING,
     role: {
       type: DataTypes.ENUM('admin', 'user', 'guest'),

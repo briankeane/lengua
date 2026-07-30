@@ -7,6 +7,14 @@ Monorepo with two components:
 
 Docker Compose for orchestration. All cross-project commands are in the root `Makefile`.
 
+## Client Design Reference
+
+`mockups/lengua-ux/` is the canonical UX reference for the client — a DesignCode
+prototype of the whole app on the **Nocturne** dark design system. When building or
+reviewing client UI, work from it: match its layout, copy, and design tokens
+(`mockups/lengua-ux/_ds/nocturne-*/styles.css`). See `mockups/README.md`.
+Auth is **OAuth-only, Google only** ("No password. No email.").
+
 ## Task-Type Quick Reference
 
 | Task Type                  | Read This                |

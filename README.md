@@ -250,7 +250,7 @@ when it creates image-backed services — so the image and its pull access must 
      Package settings → Change visibility → Public), **or**
    - create a Render **registry credential** for GHCR (Render → Account Settings →
      Registry Credentials) and attach it to the image services when creating them.
-3. **Create the `production` env var group** in the Render dashboard with:
+3. **Create the `lengua-production` env var group** in the Render dashboard with:
    - `JWT_SECRET` — a strong secret
    - (add `REDIS_URL` later if/when you enable the BullMQ queue)
 

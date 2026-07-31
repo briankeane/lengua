@@ -11,7 +11,14 @@ module.exports = {
         allowNull: false,
         autoIncrement: false,
       },
-      userId: { type: Sequelize.UUID, allowNull: false },
+      userId: {
+        type: Sequelize.UUID,
+        allowNull: false,
+        references: { model: 'users', key: 'id' },
+        onUpdate: 'CASCADE',
+        // A session belongs to its user; deleting the user removes their sessions.
+        onDelete: 'CASCADE',
+      },
       provider: { type: Sequelize.STRING, allowNull: false },
       providerConversationId: { type: Sequelize.STRING, unique: true, allowNull: true },
       mode: { type: Sequelize.ENUM('quiz', 'weave'), allowNull: false },

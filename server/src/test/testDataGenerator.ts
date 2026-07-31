@@ -1,6 +1,7 @@
 import { faker } from '@faker-js/faker';
 import config from '../config/config';
 import User from '../db/models/user.model';
+import ConversationSession, { VoiceMode } from '../db/models/conversationSession.model';
 import { generateToken } from '../utils/jwt';
 
 if (config.NODE_ENV !== 'test') {
@@ -37,4 +38,21 @@ export async function createUserWithToken(overrides: UserOverrides = {}) {
   const user = await createUser(overrides);
   const token = await generateToken(user);
   return { user, token };
+}
+
+type ConversationSessionOverrides = Partial<{
+  userId: string;
+  provider: string;
+  mode: VoiceMode;
+  targetLanguageCode: string;
+}>;
+
+export async function createConversationSession(overrides: ConversationSessionOverrides = {}) {
+  const userId = overrides.userId ?? (await createUser()).id;
+  return ConversationSession.create({
+    userId,
+    provider: overrides.provider ?? 'elevenlabs',
+    mode: overrides.mode ?? 'quiz',
+    targetLanguageCode: overrides.targetLanguageCode ?? 'es',
+  });
 }

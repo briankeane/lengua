@@ -7,6 +7,17 @@ import {
 } from 'sequelize';
 import sequelize from '../../sequelize';
 
+// Arbitrary JSON stored in the JSONB columns. Typed (rather than `unknown`) so
+// callers can assign real values on create without tripping Sequelize's
+// CreationOptional brand-intersection compile error.
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
 export const VOICE_MODES = ['quiz', 'weave'] as const;
 export type VoiceMode = (typeof VOICE_MODES)[number];
 
@@ -34,13 +45,13 @@ class ConversationSession extends Model<
   declare mode: VoiceMode;
   declare targetLanguageCode: string;
   declare status: CreationOptional<ConversationSessionStatus>;
-  declare vocabSnapshot: CreationOptional<unknown>;
+  declare vocabSnapshot: CreationOptional<JsonValue>;
   declare promptVersion: CreationOptional<string | null>;
-  declare providerConfigSnapshot: CreationOptional<unknown>;
+  declare providerConfigSnapshot: CreationOptional<JsonValue>;
   declare evaluationStatus: CreationOptional<EvaluationStatus>;
-  declare rawProviderTranscript: CreationOptional<unknown>;
-  declare normalizedTranscript: CreationOptional<unknown>;
-  declare scoring: CreationOptional<unknown>;
+  declare rawProviderTranscript: CreationOptional<JsonValue>;
+  declare normalizedTranscript: CreationOptional<JsonValue>;
+  declare scoring: CreationOptional<JsonValue>;
   declare evaluatorProvider: CreationOptional<string | null>;
   declare evaluatorModel: CreationOptional<string | null>;
   declare evaluatorVersion: CreationOptional<string | null>;

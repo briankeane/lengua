@@ -21,6 +21,8 @@ export function useTranslation() {
     abortRef.current?.abort();
     requestIdRef.current++;
     setInputTextState(text);
+    setOutputText('');
+    setError(null);
   }, []);
 
   // Abort any in-flight request on unmount.
@@ -58,6 +60,7 @@ export function useTranslation() {
           if (requestId !== requestIdRef.current) return; // stale
           if (controller.signal.aborted) return;
           setError(err instanceof Error ? err.message : 'Translation failed');
+          setOutputText('');
           setLoading(false);
         });
     }, DEBOUNCE_MS);

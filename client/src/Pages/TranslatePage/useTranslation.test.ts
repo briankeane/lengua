@@ -112,6 +112,42 @@ describe('useTranslation', () => {
     expect(result.current.outputText).toBe('dos');
   });
 
+  it('clears stale output immediately when input changes after a successful translation', async () => {
+    vi.spyOn(translateService, 'translate').mockResolvedValue({ text: 'hola', direction: 'en-es' });
+    const { result } = renderHook(() => useTranslation());
+
+    act(() => result.current.setInputText('hello'));
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(result.current.outputText).toBe('hola');
+
+    act(() => result.current.setInputText('goodbye'));
+
+    expect(result.current.outputText).toBe('');
+  });
+
+  it('clears output and does not leave a stale translation when a request fails', async () => {
+    const spy = vi.spyOn(translateService, 'translate');
+    spy.mockResolvedValueOnce({ text: 'hola', direction: 'en-es' });
+    const { result } = renderHook(() => useTranslation());
+
+    act(() => result.current.setInputText('hello'));
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(result.current.outputText).toBe('hola');
+
+    spy.mockRejectedValueOnce(new Error('boom'));
+    act(() => result.current.setInputText('goodbye'));
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(result.current.error).toBe('boom');
+    expect(result.current.outputText).toBe('');
+  });
+
   it('swap flips direction and moves output into input', async () => {
     vi.spyOn(translateService, 'translate').mockResolvedValue({ text: 'hola', direction: 'en-es' });
     const { result } = renderHook(() => useTranslation());

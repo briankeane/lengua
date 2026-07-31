@@ -76,6 +76,42 @@ describe('useTranslation', () => {
     expect(result.current.outputText).toBe('dos');
   });
 
+  it('invalidates an in-flight request immediately when input changes before it resolves', async () => {
+    const resolvers: Array<(v: { text: string; direction: 'en-es' }) => void> = [];
+    vi.spyOn(translateService, 'translate').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvers.push(resolve as (v: { text: string; direction: 'en-es' }) => void);
+        }),
+    );
+    const { result } = renderHook(() => useTranslation());
+
+    act(() => result.current.setInputText('one'));
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+    });
+    // Request #1 is now in-flight.
+
+    act(() => result.current.setInputText('two'));
+    // Still inside the new debounce window: request #2's timer hasn't fired yet.
+
+    // Resolve the stale request #1 while it should already be invalidated.
+    await act(async () => {
+      resolvers[0]({ text: 'uno', direction: 'en-es' });
+    });
+
+    expect(result.current.outputText).toBe('');
+
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+    });
+    await act(async () => {
+      resolvers[1]({ text: 'dos', direction: 'en-es' });
+    });
+
+    expect(result.current.outputText).toBe('dos');
+  });
+
   it('swap flips direction and moves output into input', async () => {
     vi.spyOn(translateService, 'translate').mockResolvedValue({ text: 'hola', direction: 'en-es' });
     const { result } = renderHook(() => useTranslation());

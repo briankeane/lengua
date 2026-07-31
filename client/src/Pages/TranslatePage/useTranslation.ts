@@ -45,7 +45,14 @@ export function useTranslation() {
         });
     }, DEBOUNCE_MS);
 
-    return () => clearTimeout(handle);
+    return () => {
+      clearTimeout(handle);
+      abortRef.current?.abort();
+      // Not a DOM ref capture: this intentionally mutates the live counter so
+      // any response already in flight is treated as stale the moment inputs change.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      requestIdRef.current++;
+    };
   }, [inputText, direction]);
 
   const swap = useCallback(() => {

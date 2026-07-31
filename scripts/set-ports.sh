@@ -8,6 +8,7 @@ BASE_SERVER_DEBUG_PORT=9229
 BASE_WORKER_PORT=10030
 BASE_CLIENT_PORT=3000
 BASE_CLIENT_HMR_PORT=3010
+BASE_REDIS_PORT=6379
 
 check_port() {
   local port=$1
@@ -25,13 +26,15 @@ check_all_ports() {
   local worker_port=$((BASE_WORKER_PORT + offset))
   local client_port=$((BASE_CLIENT_PORT + offset))
   local client_hmr_port=$((BASE_CLIENT_HMR_PORT + offset))
+  local redis_port=$((BASE_REDIS_PORT + offset))
 
   check_port "$postgres_port" && \
   check_port "$server_port" && \
   check_port "$server_debug_port" && \
   check_port "$worker_port" && \
   check_port "$client_port" && \
-  check_port "$client_hmr_port"
+  check_port "$client_hmr_port" && \
+  check_port "$redis_port"
 }
 
 find_available_offset() {
@@ -77,6 +80,7 @@ if [ -n "${CONDUCTOR_PORT:-}" ]; then
   SERVER_DEBUG_PORT=$((CONDUCTOR_PORT + 3))
   WORKER_PORT=$((CONDUCTOR_PORT + 4))
   POSTGRES_PORT=$((CONDUCTOR_PORT + 5))
+  REDIS_PORT=$((CONDUCTOR_PORT + 6))
   offset="conductor"
 else
   # Read PORT_OFFSET from root .env if it exists, otherwise auto-detect
@@ -100,6 +104,7 @@ else
   WORKER_PORT=$((BASE_WORKER_PORT + offset))
   CLIENT_PORT=$((BASE_CLIENT_PORT + offset))
   CLIENT_HMR_PORT=$((BASE_CLIENT_HMR_PORT + offset))
+  REDIS_PORT=$((BASE_REDIS_PORT + offset))
 fi
 
 # Derive a project name from the directory name
@@ -114,6 +119,7 @@ update_env_var ".env" "SERVER_DEBUG_PORT" "$SERVER_DEBUG_PORT"
 update_env_var ".env" "WORKER_PORT" "$WORKER_PORT"
 update_env_var ".env" "CLIENT_PORT" "$CLIENT_PORT"
 update_env_var ".env" "CLIENT_HMR_PORT" "$CLIENT_HMR_PORT"
+update_env_var ".env" "REDIS_PORT" "$REDIS_PORT"
 
 # Update server/.env. PORT is the port the app LISTENS on INSIDE the container,
 # which is constant across workspaces — docker-compose maps the unique host
@@ -144,3 +150,4 @@ echo "  PostgreSQL: $POSTGRES_PORT"
 echo "  Server:     $SERVER_PORT (debug: $SERVER_DEBUG_PORT)"
 echo "  Worker:     $WORKER_PORT"
 echo "  Client:     $CLIENT_PORT (HMR: $CLIENT_HMR_PORT)"
+echo "  Redis:      $REDIS_PORT"

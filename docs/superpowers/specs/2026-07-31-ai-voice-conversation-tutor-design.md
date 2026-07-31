@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-31
 **Branch:** `briankeane/ai-voice-conversation-tutor`
-**Status:** Approved design (v2 — two modes + per-word evaluation), pending implementation plan
+**Status:** Approved design (v3 — user-authored per-user vocab; two modes + per-word evaluation), pending implementation plan
 
 ## 1. Goal
 
@@ -37,6 +37,9 @@ OpenAI Realtime and Google Gemini Live can be added later. Per-word scoring is
 - ElevenLabs Conversational AI provider, end to end.
 - Both `quiz` and `weave` modes, sharing a common mode-definition module.
 - Familiarity-driven question-style selection in `quiz` mode.
+- **User-authored vocabulary** (the core input loop): the learner types an
+  everyday English phrase, the server generates the Spanish, and **Save** persists
+  the per-user pair (`vocabItems`). CRUD + a stateless translate endpoint. See §6.
 - "Speak slower" support.
 - **Server-side per-word evaluation** (an `Evaluator` seam) run **asynchronously
   via the existing BullMQ worker** after the call, producing a structured report.
@@ -47,11 +50,13 @@ OpenAI Realtime and Google Gemini Live can be added later. Per-word scoring is
 ### Out of scope (deliberately deferred)
 
 - **No mobile/React Native implementation** this build (portable design only).
-- **No vocab data model and no per-user mastery loop.** Vocabulary enters through
-  a stubbed `VocabSource` returning a static Spanish list; each item carries a
-  static `familiarity` 0–5. Real per-user vocabulary and updating mastery from
-  results are later projects and must not change the prompt/session/evaluation
-  code.
+- **No shared/curated vocab catalog, cross-user analytics, or content moderation.**
+  Vocabulary is **per-user by design** (see §6) — the learner authors exactly the
+  phrases they need, so there is nothing to curate or unify across users. The
+  per-user vocab **data model and authoring flow are in scope**; what's deferred is
+  the **mastery loop**: automatic `familiarity` updates from `WordReport` land in a
+  later PR, and real spaced-repetition scheduling (beyond a `nextDueAt` stub) is a
+  later project. Until writeback ships, `familiarity` holds its stored value.
 - **No OpenAI Realtime / Gemini adapters** yet (interfaces must accommodate them).
 - **No realtime server-side transcript** ingestion, no WebSocket/SSE.
 - **No per-word relational table** — the report is stored as JSONB on the session.
@@ -170,17 +175,37 @@ prompt overrides must be explicitly enabled on the agent (a one-time IaC setting
 and the assembled prompt travels through the browser to ElevenLabs (visible in
 devtools — acceptable for a tutor prompt).
 
-## 6. Vocabulary: the prompt-injection contract
+## 6. Vocabulary: user-authored, per-user (no shared catalog)
 
-No vocab schema in v1. Vocabulary enters through one seam:
+Vocabulary is **user-specific by design**. The learner types the everyday phrases
+*they* need ("Where's the bathroom?"), the server generates the target-language
+translation, and on **Save** the pair becomes a row the learner owns. There is
+**no shared/curated catalog**: raw content ("perro → dog") is cheap to regenerate,
+so a catalog would only exist to unify *identity* across users — which this product
+doesn't want. Unifying would fight per-user phrasing/translation preferences and
+buys nothing here (curated decks, cross-user analytics, moderation are all
+non-goals). "perro → dog" existing five times across five users is fine.
+
+### Create flow (English in → generated target → Save)
+
+1. `POST /v1/vocab/translations` — `{ sourceText, targetLanguageCode }` →
+   `{ term, itemType, partOfSpeech? }`. **Stateless** LLM translate; nothing is
+   persisted. The client shows the target; the learner may edit it before saving.
+2. `POST /v1/vocab` — `{ sourceText, term, targetLanguageCode, itemType }` persists
+   a `vocabItem`, recording `translationSource: 'ai' | 'user'` (whether the learner
+   overrode the generated translation).
+3. `GET /v1/vocab`, `PATCH /v1/vocab/:id`, `DELETE /v1/vocab/:id` — manage the list.
+
+### The seam (resolves from the learner's own items)
 
 ```ts
 interface VocabItem {
   id: string;
-  term: string;
-  translation?: string;
+  sourceText: string;     // the English the learner typed ("Where's the bathroom?")
+  term: string;           // target-language phrase ("¿Dónde está el baño?") — the learning object
+  itemType: 'word' | 'phrase';
   partOfSpeech?: string;
-  familiarity: number; // 0-5, static in v1
+  familiarity: number;    // 0-5, from the learner's row (starts at 0)
 }
 
 interface VocabSource {
@@ -188,10 +213,12 @@ interface VocabSource {
 }
 ```
 
-**v1 implementation:** a static Spanish list (a const/JSON in the repo). Later
-swapped for real per-user data with no change to prompt, session, or evaluation
-code. The words chosen (with `familiarity` and computed `bucket`) are snapshotted
-onto `ConversationSession.vocabSnapshot`.
+**v1 implementation:** `getSessionVocab` selects from the learner's `vocabItems`
+(active, matching target language), picks a session set by familiarity bucket, and
+snapshots the chosen items (with `familiarity` and computed `bucket`) onto
+`ConversationSession.vocabSnapshot` — the frozen, reproducible record used by the
+prompt and the evaluator. Mastery writeback (updating `familiarity` from
+`WordReport`) is a later PR; until then `familiarity` holds its stored value.
 
 ## 7. Evaluation: server-side, async, provider-agnostic
 
@@ -374,9 +401,38 @@ the blueprint work is:
 4. Code: ensure the ioredis connection uses `maxRetriesPerRequest: null` (BullMQ
    requirement) in `server/src/queue/index.ts`.
 
-## 11. Data model (one table)
+## 11. Data model
 
-**`ConversationSession`** — core + evaluation fields:
+### `vocabItems` — user-authored vocabulary
+
+The learner's own phrases. **No shared catalog** (see §6); every row is owned by
+one user.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| id | uuid | pk |
+| userId | uuid | fk → users, `ON DELETE CASCADE` |
+| targetLanguageCode | string | `es` (source language is English in v1) |
+| sourceText | string | the English the learner typed |
+| term | string | target-language phrase (the learning object) |
+| termNormalized | string | for per-user dedup |
+| itemType | enum | `word` \| `phrase` (drives quiz style; model-enum pattern) |
+| partOfSpeech | string, nullable | words only |
+| translationSource | enum | `ai` \| `user` (did the learner override the generated translation) |
+| familiarity | int, default 0 | 0–5 |
+| lastSeenAt | Date, nullable | |
+| timesSeen / timesCorrect / timesIncorrect | int, default 0 | |
+| lastOutcome | string, nullable | last `WordOutcome` |
+| nextDueAt | Date, nullable | scheduling (stub in v1) |
+| createdAt / updatedAt | timestamps | |
+
+Constraints: unique `(userId, targetLanguageCode, termNormalized)` (dedup **within**
+a user only, never across users); indexes `(userId, familiarity)`,
+`(userId, nextDueAt)`. `bucket` is **derived** (0–1 `new`, 2–3 `learning`, 4–5
+`known`), never stored. `itemType` and `translationSource` follow the project's
+model-enum pattern.
+
+### `ConversationSession` — core + evaluation fields
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -387,7 +443,7 @@ the blueprint work is:
 | mode | enum | `quiz` \| `weave` (extensible; model-enum pattern) |
 | targetLanguageCode | string | `es` |
 | status | enum | `active` \| `completed` \| `failed` \| `expired` |
-| vocabSnapshot | JSONB | `{ id, term, translation?, partOfSpeech?, familiarity, bucket }[]` |
+| vocabSnapshot | JSONB | `{ id, sourceText, term, itemType, partOfSpeech?, familiarity, bucket }[]` |
 | promptVersion | string | prompt build id |
 | providerConfigSnapshot | JSONB | agent/config used |
 | evaluationStatus | enum | `not_started` \| `waiting_transcript` \| `pending` \| `ready` \| `failed` \| `expired` |
@@ -432,7 +488,8 @@ kill-switch, audio-retention controls, per-word analytics, a stuck-session sweep
 ## 13. Testing strategy
 
 - **Server lib** (TDD, one function at a time): mode modules (tutor instructions +
-  rubric for each mode/bucket), `VocabSource` static impl + bucketing, prompt
+  rubric for each mode/bucket), vocab CRUD + translate endpoint, `VocabSource`
+  DB-backed selection + bucketing, prompt
   assembly → override, `ElevenLabsSessionProvider.createSession` (nock token
   endpoint), webhook HMAC verify + normalization + idempotent enqueue,
   `AnthropicEvaluator` (nock Anthropic; happy path + malformed JSON), the worker
@@ -454,7 +511,7 @@ React UI
   │    └─ ElevenLabsVoiceSessionAdapter ──(WebRTC, @elevenlabs/react)──► ElevenLabs
   └─ apiClient (Bearer JWT)
        ├─ POST /v1/voice/sessions ─► VoiceSessionService
-       │      ├─ modes/ (shared mode definition)  ├─ VocabSource (static)
+       │      ├─ modes/ (shared mode definition)  ├─ VocabSource (per-user DB)
        │      ├─ PromptBuilder (→ override)        ├─ ElevenLabsSessionProvider ─► /v1/convai/conversation/token
        │      └─ ConversationSession (Sequelize)
        └─ GET /v1/voice/sessions/:id/report ─► reads ConversationSession.scoring
@@ -469,7 +526,9 @@ BullMQ worker (server/src/worker.ts)
 ## 15. Future work / open questions
 
 - OpenAI Realtime and Gemini Live adapters (reuse `PromptSpec` + `Evaluator`).
-- Real per-user vocabulary + mastery updates from `WordReport` behind `VocabSource`.
+- Mastery updates from `WordReport` (writeback into `vocabItems.familiarity`) and
+  real spaced-repetition scheduling — the per-user vocab model + authoring flow
+  itself now ships in v1 (§6, §11).
 - React Native client reusing the server seam.
 - Stuck-session sweeper (cron) for `waiting_transcript`/`pending`.
 - Confirm exact ElevenLabs override/token/webhook payload field names and the

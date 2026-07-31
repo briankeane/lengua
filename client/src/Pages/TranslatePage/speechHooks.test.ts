@@ -39,6 +39,38 @@ describe('useSpeechRecognition', () => {
     act(() => result.current.toggle());
     expect(start).toHaveBeenCalled();
   });
+
+  it('stops recognition when the locale changes', () => {
+    const start = vi.fn();
+    const instances: { stop: ReturnType<typeof vi.fn> }[] = [];
+    class FakeRecognition {
+      lang = '';
+      continuous = false;
+      interimResults = false;
+      onresult: ((e: unknown) => void) | null = null;
+      onend: (() => void) | null = null;
+      start = start;
+      stop = vi.fn();
+      constructor() {
+        instances.push(this);
+      }
+    }
+    // @ts-expect-error inject test global
+    window.SpeechRecognition = FakeRecognition;
+
+    const onFinalText = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ locale }) => useSpeechRecognition({ locale, onFinalText }),
+      { initialProps: { locale: 'en-US' } },
+    );
+    act(() => result.current.toggle());
+    expect(start).toHaveBeenCalled();
+    expect(instances).toHaveLength(1);
+
+    rerender({ locale: 'es-ES' });
+
+    expect(instances[0].stop).toHaveBeenCalled();
+  });
 });
 
 describe('useSpeechSynthesis', () => {

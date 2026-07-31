@@ -41,14 +41,15 @@ export function useSpeechRecognition({
     return () => {
       const recognition = recognitionRef.current;
       if (recognition) {
-        // Detach handlers first so events fired after unmount are ignored.
+        // Detach handlers first so events fired after stop/unmount are ignored.
         recognition.onresult = null;
         recognition.onend = null;
         recognition.stop();
       }
       recognitionRef.current = null;
+      setIsListening(false);
     };
-  }, []);
+  }, [locale]);
 
   const toggle = () => {
     if (!Ctor) return;

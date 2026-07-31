@@ -175,4 +175,30 @@ describe('useSpeechSynthesis', () => {
     expect(result.current.isSupported).toBe(false);
     expect(() => act(() => result.current.speak('hola'))).not.toThrow();
   });
+
+  it('cancels in-progress speech when the locale changes', () => {
+    const cancel = vi.fn();
+    // @ts-expect-error inject test global
+    window.speechSynthesis = {
+      speak: vi.fn(),
+      cancel,
+      getVoices: () => [],
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+    // @ts-expect-error inject test global
+    window.SpeechSynthesisUtterance = class {
+      lang = '';
+      constructor(public text: string) {}
+    };
+
+    const { rerender } = renderHook(({ locale }) => useSpeechSynthesis({ locale }), {
+      initialProps: { locale: 'es-ES' },
+    });
+    cancel.mockClear();
+
+    rerender({ locale: 'en-US' });
+
+    expect(cancel).toHaveBeenCalled();
+  });
 });

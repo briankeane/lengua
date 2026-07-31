@@ -23,6 +23,13 @@ export function useSpeechSynthesis({ locale }: { locale: string }) {
     };
   }, [isSupported]);
 
+  // Cancel any in-progress speech when the language changes, so audio in the
+  // old language doesn't keep playing after a swap.
+  useEffect(() => {
+    if (!isSupported) return;
+    window.speechSynthesis.cancel();
+  }, [isSupported, locale]);
+
   const speak = (text: string) => {
     if (!isSupported || text.trim() === '') return;
     window.speechSynthesis.cancel();

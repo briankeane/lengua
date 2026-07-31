@@ -115,9 +115,14 @@ update_env_var ".env" "WORKER_PORT" "$WORKER_PORT"
 update_env_var ".env" "CLIENT_PORT" "$CLIENT_PORT"
 update_env_var ".env" "CLIENT_HMR_PORT" "$CLIENT_HMR_PORT"
 
-# Update server/.env (PORT is the host-mapped port for external access)
+# Update server/.env. PORT is the port the app LISTENS on INSIDE the container,
+# which is constant across workspaces — docker-compose maps the unique host
+# SERVER_PORT to this fixed container port ($SERVER_PORT:$BASE_SERVER_PORT).
+# Keeping it constant lets multiple workspaces run at once without collision
+# (each compose project is isolated by COMPOSE_PROJECT_NAME); only the host
+# port varies. Reach each workspace's server at http://localhost:$SERVER_PORT.
 if [ -f "server/.env" ]; then
-  update_env_var "server/.env" "PORT" "$SERVER_PORT"
+  update_env_var "server/.env" "PORT" "$BASE_SERVER_PORT"
 fi
 
 # Update client/.env

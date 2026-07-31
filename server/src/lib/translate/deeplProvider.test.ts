@@ -70,6 +70,18 @@ describe('deeplProvider', function () {
     }
   });
 
+  it('throws UpstreamError when the translated text is not a string', async function () {
+    nock(FREE_HOST)
+      .post('/v2/translate')
+      .reply(200, { translations: [{ text: 123 }] });
+    try {
+      await deeplProvider.translate({ text: 'hello', sourceLang: 'EN', targetLang: 'ES' });
+      assert.fail('should have thrown');
+    } catch (err) {
+      assert.instanceOf(err, UpstreamError);
+    }
+  });
+
   it('throws ServerError when the API key is missing', async function () {
     delete config.DEEPL_API_KEY;
     try {

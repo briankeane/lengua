@@ -58,7 +58,7 @@ export const deeplProvider: TranslateProvider = {
       throw new UpstreamError('Translation provider returned an unexpected response');
     }
     const translated = data.translations?.[0]?.text;
-    if (translated == null) {
+    if (translated == null || typeof translated !== 'string') {
       throw new UpstreamError('Translation provider returned an unexpected response');
     }
     return translated;

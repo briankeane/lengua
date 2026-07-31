@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 
 export function useSpeechSynthesis({ locale }: { locale: string }) {
-  const isSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+  const isSupported =
+    typeof window !== 'undefined' &&
+    'speechSynthesis' in window &&
+    typeof window.SpeechSynthesisUtterance !== 'undefined';
   const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
   const [, setVoicesLoaded] = useState(false);
 

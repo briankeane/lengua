@@ -10,6 +10,7 @@ interface SpeechRecognitionLike {
       }) => void)
     | null;
   onend: (() => void) | null;
+  onerror: (() => void) | null;
   start(): void;
   stop(): void;
 }
@@ -44,7 +45,12 @@ export function useSpeechRecognition({
         // Detach handlers first so events fired after stop/unmount are ignored.
         recognition.onresult = null;
         recognition.onend = null;
-        recognition.stop();
+        recognition.onerror = null;
+        try {
+          recognition.stop();
+        } catch {
+          // Ignore: recognition may already be stopped/errored.
+        }
       }
       recognitionRef.current = null;
       setIsListening(false);
@@ -54,7 +60,13 @@ export function useSpeechRecognition({
   const toggle = () => {
     if (!Ctor) return;
     if (isListening) {
-      recognitionRef.current?.stop();
+      try {
+        recognitionRef.current?.stop();
+      } catch {
+        // Ignore: recognition may already be stopped.
+        setIsListening(false);
+        recognitionRef.current = null;
+      }
       return;
     }
     const recognition = new Ctor();
@@ -67,13 +79,22 @@ export function useSpeechRecognition({
         onFinalText(last[0].transcript.trim());
       }
     };
-    recognition.onend = () => {
+    const cleanupOnFailure = () => {
+      recognition.onresult = null;
+      recognition.onend = null;
+      recognition.onerror = null;
       setIsListening(false);
       recognitionRef.current = null;
     };
+    recognition.onend = cleanupOnFailure;
+    recognition.onerror = cleanupOnFailure;
     recognitionRef.current = recognition;
-    recognition.start();
-    setIsListening(true);
+    try {
+      recognition.start();
+      setIsListening(true);
+    } catch {
+      cleanupOnFailure();
+    }
   };
 
   return { isSupported, isListening, toggle };

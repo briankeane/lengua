@@ -5,13 +5,30 @@ export const DEBOUNCE_MS = 400;
 
 export function useTranslation() {
   const [direction, setDirection] = useState<TranslationDirection>('en-es');
-  const [inputText, setInputText] = useState('');
+  const [inputText, setInputTextState] = useState('');
   const [outputText, setOutputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const requestIdRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Invalidate synchronously at the source of the input change, rather than
+  // relying on the debounce effect's cleanup (which React defers until after
+  // the render/paint) — closes the window where an in-flight response could
+  // resolve after the user typed but before cleanup runs.
+  const setInputText = useCallback((text: string) => {
+    abortRef.current?.abort();
+    requestIdRef.current++;
+    setInputTextState(text);
+  }, []);
+
+  // Abort any in-flight request on unmount.
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     const trimmed = inputText.trim();
@@ -47,11 +64,6 @@ export function useTranslation() {
 
     return () => {
       clearTimeout(handle);
-      abortRef.current?.abort();
-      // Not a DOM ref capture: this intentionally mutates the live counter so
-      // any response already in flight is treated as stale the moment inputs change.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      requestIdRef.current++;
     };
   }, [inputText, direction]);
 
@@ -59,7 +71,7 @@ export function useTranslation() {
     abortRef.current?.abort();
     requestIdRef.current++; // invalidate any in-flight response
     setDirection((prev) => (prev === 'en-es' ? 'es-en' : 'en-es'));
-    setInputText(outputText);
+    setInputTextState(outputText);
     setOutputText('');
   }, [outputText]);
 

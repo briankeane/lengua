@@ -5,7 +5,7 @@ import { AuthProvider } from '../Contexts/AuthProvider';
 
 vi.mock('@react-oauth/google', () => ({
   GoogleOAuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  useGoogleLogin: () => () => {},
+  GoogleLogin: () => <button type="button">Continue with Google</button>,
 }));
 
 // Rebuild the same route children the app mounts, without the live GoogleOAuthProvider/env.

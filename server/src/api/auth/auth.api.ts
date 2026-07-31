@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
-import { googleSignInWithCode, login, signup } from '../../lib/auth';
+import { googleSignInWithIdToken, login, signup } from '../../lib/auth';
 
 export async function handleSignup(req: Request, res: Response, next: NextFunction) {
   try {
@@ -28,8 +28,8 @@ export async function handleLogin(req: Request, res: Response, next: NextFunctio
 
 export async function handleGoogleSignIn(req: Request, res: Response, next: NextFunction) {
   try {
-    const { code } = req.body;
-    const { user, token } = await googleSignInWithCode({ code });
+    const { idToken } = req.body;
+    const { user, token } = await googleSignInWithIdToken({ idToken });
     res.status(200).json({ user: user.jwtRepr(), token });
   } catch (err) {
     next(err);

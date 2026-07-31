@@ -30,6 +30,8 @@ export class Config implements Partial<EnvVars> {
   _GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
   _GOOGLE_CLIENT_SECRET?: string;
+  GOOGLE_IOS_CLIENT_ID?: string;
+  _GOOGLE_IOS_CLIENT_ID?: string;
 
   constructor(env: string = process.env.NODE_ENV ?? Environments.DEVELOPMENT) {
     this.env = env;

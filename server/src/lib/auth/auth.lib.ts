@@ -57,31 +57,23 @@ export async function login({
   return { user, token };
 }
 
-export async function googleSignInWithCode({
-  code,
+export async function googleSignInWithIdToken({
+  idToken,
 }: {
-  code: string;
+  idToken: string;
 }): Promise<{ user: User; token: string }> {
-  if (!config.GOOGLE_CLIENT_ID || !config.GOOGLE_CLIENT_SECRET) {
+  const audience = [config.GOOGLE_CLIENT_ID, config.GOOGLE_IOS_CLIENT_ID].filter(
+    Boolean,
+  ) as string[];
+  if (audience.length === 0) {
     throw new ValidationError('Google sign-in is not configured');
   }
 
-  const client = new OAuth2Client(
-    config.GOOGLE_CLIENT_ID,
-    config.GOOGLE_CLIENT_SECRET,
-    'postmessage',
-  );
+  const client = new OAuth2Client();
 
   let payload: TokenPayload | undefined;
   try {
-    const { tokens } = await client.getToken(code);
-    if (!tokens.id_token) {
-      throw new Error('No id_token returned from Google');
-    }
-    const ticket = await client.verifyIdToken({
-      idToken: tokens.id_token,
-      audience: config.GOOGLE_CLIENT_ID,
-    });
+    const ticket = await client.verifyIdToken({ idToken, audience });
     payload = ticket.getPayload();
   } catch {
     throw new AuthenticationError('Google authentication failed');

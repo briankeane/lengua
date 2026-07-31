@@ -9,6 +9,7 @@ import config from './config/config';
 import addDocRoutes from './docs';
 import logger from './logger';
 import { errorHandler } from './middleware/errorHandler';
+import { skipSuccessfulHealthCheck } from './utils/healthCheckLogging';
 
 export type AppWithIsReadyPromise = express.Application & {
   isReadyPromise: Promise<void>;
@@ -54,7 +55,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 const setupPromises: Promise<unknown>[] = [];
 
 if (config.NODE_ENV !== 'test') {
-  app.use(morgan('dev'));
+  app.use(morgan('dev', { skip: skipSuccessfulHealthCheck }));
 }
 
 const server = http.createServer(app);

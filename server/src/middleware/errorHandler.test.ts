@@ -1,6 +1,12 @@
 import { assert } from 'chai';
 import { errorHandler } from './errorHandler';
-import { NotFoundError, ValidationError, AppError } from '../utils/errors';
+import {
+  NotFoundError,
+  ValidationError,
+  AppError,
+  RateLimitError,
+  UpstreamError,
+} from '../utils/errors';
 import { NextFunction, Request, Response } from 'express';
 
 type MockResponse = Partial<Response> & {
@@ -66,6 +72,29 @@ describe('errorHandler', () => {
         message: 'boom',
       },
     });
+  });
+
+  it('maps RateLimitError to 429', () => {
+    const req = { path: '/translate', method: 'POST' } as Request;
+    const res = createMockRes();
+
+    errorHandler(new RateLimitError('slow down'), req, res as Response, (() => {}) as NextFunction);
+
+    assert.equal(res.statusCode, 429);
+  });
+
+  it('maps UpstreamError to 502', () => {
+    const req = { path: '/translate', method: 'POST' } as Request;
+    const res = createMockRes();
+
+    errorHandler(
+      new UpstreamError('bad upstream'),
+      req,
+      res as Response,
+      (() => {}) as NextFunction,
+    );
+
+    assert.equal(res.statusCode, 502);
   });
 
   it('does nothing when headers already sent', () => {

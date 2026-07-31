@@ -1,9 +1,9 @@
 services:
-  # Uncomment to enable Redis (also add REDIS_URL=redis://redis:6379 to server/.env)
-  # redis:
-  #   image: "redis:alpine"
-  #   ports:
-  #     - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+  redis:
+    image: "redis:alpine"
+    command: ["redis-server", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
 
   postgres:
     user: postgres
@@ -38,8 +38,11 @@ services:
     depends_on:
       - postgres
       - migrate
+      - redis
     env_file:
       - ./server/.env
+    environment:
+      - REDIS_URL=redis://redis:6379
     command: ['npm', 'run', 'dev']
 
   worker:
@@ -58,8 +61,11 @@ services:
     depends_on:
       - postgres
       - migrate
+      - redis
     env_file:
       - ./server/.env
+    environment:
+      - REDIS_URL=redis://redis:6379
     command: ['npm', 'run', 'worker']
 
   migrate:

@@ -12,6 +12,15 @@ databases:
     region: ohio
 
 services:
+  - type: keyvalue
+    name: lengua-kv
+    plan: starter
+    region: ohio
+    # BullMQ REQUIRES no eviction — jobs must never be dropped under memory pressure.
+    maxmemoryPolicy: noeviction
+    # Internal-only access (no public IPs). Empty list = only same-region Render services.
+    ipAllowList: []
+
   - type: web
     name: production-server
     runtime: image
@@ -40,6 +49,11 @@ services:
         fromDatabase:
           name: lengua-db
           property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: lengua-kv
+          property: connectionString
       - fromGroup: lengua-production
 
   - type: worker
@@ -62,5 +76,10 @@ services:
       - key: DATABASE_URL
         fromDatabase:
           name: lengua-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: lengua-kv
           property: connectionString
       - fromGroup: lengua-production

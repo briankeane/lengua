@@ -51,7 +51,12 @@ export const deeplProvider: TranslateProvider = {
       throw new UpstreamError('Translation provider returned an error');
     }
 
-    const data = (await response.json()) as { translations?: { text: string }[] };
+    let data: { translations?: { text: string }[] };
+    try {
+      data = (await response.json()) as { translations?: { text: string }[] };
+    } catch {
+      throw new UpstreamError('Translation provider returned an unexpected response');
+    }
     const translated = data.translations?.[0]?.text;
     if (translated == null) {
       throw new UpstreamError('Translation provider returned an unexpected response');

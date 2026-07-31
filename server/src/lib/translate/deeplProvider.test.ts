@@ -60,6 +60,16 @@ describe('deeplProvider', function () {
     }
   });
 
+  it('throws UpstreamError when the response body is not valid JSON', async function () {
+    nock(FREE_HOST).post('/v2/translate').reply(200, 'not json at all');
+    try {
+      await deeplProvider.translate({ text: 'hello', sourceLang: 'EN', targetLang: 'ES' });
+      assert.fail('should have thrown');
+    } catch (err) {
+      assert.instanceOf(err, UpstreamError);
+    }
+  });
+
   it('throws ServerError when the API key is missing', async function () {
     delete config.DEEPL_API_KEY;
     try {

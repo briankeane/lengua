@@ -6,6 +6,7 @@ export const optionalEnvVars = [
   'REDIS_URL',
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
+  'GOOGLE_IOS_CLIENT_ID',
 ] as const;
 
 export type RequiredEnvVar = (typeof requiredEnvVars)[number];

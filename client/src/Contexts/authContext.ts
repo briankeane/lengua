@@ -17,7 +17,7 @@ export interface AuthContextValue {
   loading: boolean;
   login: (params: LoginParams) => Promise<void>;
   signup: (params: SignupParams) => Promise<void>;
-  signInWithGoogle: (code: string) => Promise<void>;
+  signInWithGoogle: (idToken: string) => Promise<void>;
   loginWithToken: (token: string, user: AuthUser) => void;
   logout: () => void;
 }

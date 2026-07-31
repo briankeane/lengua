@@ -62,8 +62,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signInWithGoogle = useCallback(
-    async (code: string) => {
-      const response = await authService.googleAuth(code);
+    async (idToken: string) => {
+      const response = await authService.googleAuth(idToken);
       handleAuthResponse(response);
     },
     [handleAuthResponse],

@@ -4,7 +4,7 @@ import { renderWithProviders } from '../../test/testHelpers';
 import AuthPage from './AuthPage';
 
 vi.mock('@react-oauth/google', () => ({
-  useGoogleLogin: () => () => {},
+  GoogleLogin: () => <button type="button">Continue with Google</button>,
 }));
 
 describe('AuthPage', () => {

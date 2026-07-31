@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import ContinueWithGoogleButton from './ContinueWithGoogleButton';
 
@@ -7,18 +7,18 @@ vi.mock('../Contexts/useAuth', () => ({
   useAuth: () => ({ signInWithGoogle }),
 }));
 
-let capturedOnSuccess: ((r: { code: string }) => void) | undefined;
 vi.mock('@react-oauth/google', () => ({
-  useGoogleLogin: (opts: { onSuccess: (r: { code: string }) => void }) => {
-    capturedOnSuccess = opts.onSuccess;
-    return () => capturedOnSuccess?.({ code: 'auth-code-xyz' });
-  },
+  GoogleLogin: ({ onSuccess }: { onSuccess: (r: { credential: string }) => void }) => (
+    <button type="button" onClick={() => onSuccess({ credential: 'id-token-xyz' })}>
+      Continue with Google
+    </button>
+  ),
 }));
 
 describe('ContinueWithGoogleButton', () => {
-  it('sends the auth code to signInWithGoogle on click', async () => {
+  it('sends the Google ID token to signInWithGoogle on success', async () => {
     render(<ContinueWithGoogleButton />);
     fireEvent.click(screen.getByRole('button', { name: /continue with google/i }));
-    expect(signInWithGoogle).toHaveBeenCalledWith('auth-code-xyz');
+    await waitFor(() => expect(signInWithGoogle).toHaveBeenCalledWith('id-token-xyz'));
   });
 });

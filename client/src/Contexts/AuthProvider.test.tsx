@@ -14,7 +14,7 @@ describe('AuthProvider.signInWithGoogle', () => {
     localStorage.clear();
   });
 
-  it('exchanges a code and stores the session', async () => {
+  it('verifies a Google ID token and stores the session', async () => {
     vi.spyOn(authService, 'googleAuth').mockResolvedValue({
       token: 'jwt-123',
       user: {
@@ -29,10 +29,10 @@ describe('AuthProvider.signInWithGoogle', () => {
 
     const { result } = renderHook(() => useAuth(), { wrapper });
     await act(async () => {
-      await result.current.signInWithGoogle('auth-code');
+      await result.current.signInWithGoogle('id-token-abc');
     });
 
-    expect(authService.googleAuth).toHaveBeenCalledWith('auth-code');
+    expect(authService.googleAuth).toHaveBeenCalledWith('id-token-abc');
     await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
     expect(localStorage.getItem('token')).toBe('jwt-123');
   });

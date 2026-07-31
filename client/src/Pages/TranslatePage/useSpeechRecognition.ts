@@ -17,6 +17,7 @@ interface SpeechRecognitionLike {
 type RecognitionCtor = new () => SpeechRecognitionLike;
 
 function getRecognitionCtor(): RecognitionCtor | null {
+  if (typeof window === 'undefined') return null;
   const w = window as unknown as {
     SpeechRecognition?: RecognitionCtor;
     webkitSpeechRecognition?: RecognitionCtor;
@@ -38,7 +39,13 @@ export function useSpeechRecognition({
 
   useEffect(() => {
     return () => {
-      recognitionRef.current?.stop();
+      const recognition = recognitionRef.current;
+      if (recognition) {
+        // Detach handlers first so events fired after unmount are ignored.
+        recognition.onresult = null;
+        recognition.onend = null;
+        recognition.stop();
+      }
       recognitionRef.current = null;
     };
   }, []);

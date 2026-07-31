@@ -14,7 +14,10 @@ export function useSpeechSynthesis({ locale }: { locale: string }) {
     };
     loadVoices();
     synth.addEventListener('voiceschanged', loadVoices);
-    return () => synth.removeEventListener('voiceschanged', loadVoices);
+    return () => {
+      synth.removeEventListener('voiceschanged', loadVoices);
+      synth.cancel();
+    };
   }, [isSupported]);
 
   const speak = (text: string) => {

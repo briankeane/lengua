@@ -29,7 +29,6 @@ export default function ContinueWithGoogleButton() {
           text="continue_with"
           shape="pill"
           size="large"
-          width="400"
         />
       </div>
       {error && (

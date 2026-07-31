@@ -33,6 +33,7 @@ function getRedisConnection() {
     port: parseInt(redisUrl.port) || 6379,
     password: redisUrl.password || undefined,
     db: process.env.NODE_ENV === 'test' ? 1 : 0,
+    maxRetriesPerRequest: null,
     ...(isTLS ? { tls: {} } : {}),
   };
 }

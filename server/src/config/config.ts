@@ -32,6 +32,22 @@ export class Config implements Partial<EnvVars> {
   _GOOGLE_CLIENT_SECRET?: string;
   GOOGLE_IOS_CLIENT_ID?: string;
   _GOOGLE_IOS_CLIENT_ID?: string;
+  ELEVENLABS_API_KEY?: string;
+  _ELEVENLABS_API_KEY?: string;
+  ELEVENLABS_CONVAI_AGENT_ID?: string;
+  _ELEVENLABS_CONVAI_AGENT_ID?: string;
+  ELEVENLABS_WEBHOOK_SECRET?: string;
+  _ELEVENLABS_WEBHOOK_SECRET?: string;
+  VOICE_PROVIDER?: string;
+  _VOICE_PROVIDER?: string;
+  VOICE_MAX_SESSION_SECONDS?: string;
+  _VOICE_MAX_SESSION_SECONDS?: string;
+  ANTHROPIC_API_KEY?: string;
+  _ANTHROPIC_API_KEY?: string;
+  EVALUATOR_MODEL?: string;
+  _EVALUATOR_MODEL?: string;
+  VOICE_MAX_EVALUATIONS_PER_DAY?: string;
+  _VOICE_MAX_EVALUATIONS_PER_DAY?: string;
 
   constructor(env: string = process.env.NODE_ENV ?? Environments.DEVELOPMENT) {
     this.env = env;

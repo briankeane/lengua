@@ -7,6 +7,14 @@ export const optionalEnvVars = [
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
   'GOOGLE_IOS_CLIENT_ID',
+  'ELEVENLABS_API_KEY',
+  'ELEVENLABS_CONVAI_AGENT_ID',
+  'ELEVENLABS_WEBHOOK_SECRET',
+  'VOICE_PROVIDER',
+  'VOICE_MAX_SESSION_SECONDS',
+  'ANTHROPIC_API_KEY',
+  'EVALUATOR_MODEL',
+  'VOICE_MAX_EVALUATIONS_PER_DAY',
 ] as const;
 
 export type RequiredEnvVar = (typeof requiredEnvVars)[number];

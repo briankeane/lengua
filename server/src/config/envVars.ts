@@ -15,6 +15,7 @@ export const optionalEnvVars = [
   'ANTHROPIC_API_KEY',
   'EVALUATOR_MODEL',
   'VOICE_MAX_EVALUATIONS_PER_DAY',
+  'DEEPL_API_KEY',
 ] as const;
 
 export type RequiredEnvVar = (typeof requiredEnvVars)[number];

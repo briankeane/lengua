@@ -48,6 +48,8 @@ export class Config implements Partial<EnvVars> {
   _EVALUATOR_MODEL?: string;
   VOICE_MAX_EVALUATIONS_PER_DAY?: string;
   _VOICE_MAX_EVALUATIONS_PER_DAY?: string;
+  DEEPL_API_KEY?: string;
+  _DEEPL_API_KEY?: string;
 
   constructor(env: string = process.env.NODE_ENV ?? Environments.DEVELOPMENT) {
     this.env = env;

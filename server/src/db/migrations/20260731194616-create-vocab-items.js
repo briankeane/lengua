@@ -19,9 +19,9 @@ module.exports = {
         onDelete: 'CASCADE',
       },
       targetLanguageCode: { type: Sequelize.STRING, allowNull: false },
-      sourceText: { type: Sequelize.STRING, allowNull: false },
-      term: { type: Sequelize.STRING, allowNull: false },
-      termNormalized: { type: Sequelize.STRING, allowNull: false },
+      sourceText: { type: Sequelize.TEXT, allowNull: false },
+      term: { type: Sequelize.TEXT, allowNull: false },
+      termNormalized: { type: Sequelize.TEXT, allowNull: false },
       itemType: { type: Sequelize.ENUM('word', 'phrase'), allowNull: false },
       partOfSpeech: { type: Sequelize.STRING, allowNull: true },
       translationSource: {

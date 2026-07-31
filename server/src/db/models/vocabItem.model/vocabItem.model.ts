@@ -51,9 +51,9 @@ VocabItem.init(
       onDelete: 'CASCADE',
     },
     targetLanguageCode: { type: DataTypes.STRING, allowNull: false },
-    sourceText: { type: DataTypes.STRING, allowNull: false },
-    term: { type: DataTypes.STRING, allowNull: false },
-    termNormalized: { type: DataTypes.STRING, allowNull: false },
+    sourceText: { type: DataTypes.TEXT, allowNull: false },
+    term: { type: DataTypes.TEXT, allowNull: false },
+    termNormalized: { type: DataTypes.TEXT, allowNull: false },
     itemType: { type: DataTypes.ENUM(...VOCAB_ITEM_TYPES), allowNull: false },
     partOfSpeech: { type: DataTypes.STRING, allowNull: true },
     translationSource: {

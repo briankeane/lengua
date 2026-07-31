@@ -533,3 +533,25 @@ BullMQ worker (server/src/worker.ts)
 - Stuck-session sweeper (cron) for `waiting_transcript`/`pending`.
 - Confirm exact ElevenLabs override/token/webhook payload field names and the
   current Anthropic model id against live docs at implementation time.
+
+## 16. PR roadmap (voice-first sequencing)
+
+The build is **voice-first**: land the cheap per-user vocab *model* early, then
+get the voice conversation working end-to-end on a minimal (seeded) vocab source
+before building the vocab *authoring* UX. This surfaces the risky, demoable core
+(a working AI voice tutor) sooner; the full authoring loop is polish that lands
+after the loop works.
+
+| PR | Scope | Status |
+| --- | --- | --- |
+| **1** | Infra (Redis/Key Value, env vars) + `ConversationSession` model | ✅ merged (#13) |
+| **2** | `vocabItems` model (user-authored, per-user) + migration + factory | plan: `plans/2026-07-31-voice-tutor-pr2-vocab-model.md` |
+| **3** | `modes/` (tutor instructions + eval rubric) + `PromptSpec` builder + DB-backed `VocabSource` (reads the learner's `vocabItems`, snapshots) + a **dev seed** of a few `vocabItems` so the loop is demoable before authoring exists | pure server lib, no external calls |
+| **4** | `ElevenLabsSessionProvider` + `POST /v1/voice/sessions` (auth, rate-limit, one-active-session) | first real ElevenLabs call |
+| **5** | `POST /v1/webhooks/elevenlabs` (HMAC, normalize, enqueue) + BullMQ `voice-eval` worker + `AnthropicEvaluator` + `GET …/report` | the eval loop |
+| **6** | Thin web client: `VoiceSession` ElevenLabs adapter + call UI + report screen (polling) | end-to-end demoable |
+| **7** | Vocab authoring: `POST /v1/vocab/translations` (stateless translate) + vocab CRUD + client vocab UI (replaces the dev seed) | the deferred authoring loop |
+| **8** | Mastery writeback: `WordReport` → `vocabItems.familiarity`; scheduling | closes the learning loop |
+
+Sequencing note: PR 3–6 deliver the working voice conversation; PR 7 replaces the
+dev seed with real user-authored vocabulary; PR 8 makes it adaptive.

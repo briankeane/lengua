@@ -38,10 +38,16 @@ module.exports = {
       type: Sequelize.STRING,
       allowNull: true,
     });
+    // Add with a temporary default so rollback succeeds even if rows exist, then
+    // drop the default to match the original schema (NOT NULL, no default).
     await queryInterface.addColumn('vocabItems', 'itemType', {
       type: Sequelize.ENUM('word', 'phrase'),
       allowNull: false,
+      defaultValue: 'word',
     });
+    await queryInterface.sequelize.query(
+      'ALTER TABLE "vocabItems" ALTER COLUMN "itemType" DROP DEFAULT;',
+    );
     await queryInterface.addColumn('vocabItems', 'translationSource', {
       type: Sequelize.ENUM('ai', 'user'),
       allowNull: false,

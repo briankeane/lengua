@@ -5,8 +5,13 @@ import {
   checkBodyNonEmpty,
   checkBodyMaxLength,
   checkQueryForNoExtraFields,
+  validateUUIDsInParams,
 } from '../validation';
-import { handleCreateVocabItem, handleListVocabItems } from './vocabItem.api';
+import {
+  handleCreateVocabItem,
+  handleListVocabItems,
+  handleDeleteVocabItem,
+} from './vocabItem.api';
 
 const router = express.Router();
 
@@ -36,6 +41,13 @@ router.get(
   authenticateAccessToken,
   checkQueryForNoExtraFields(ALLOWED_QUERY_PARAMS),
   handleListVocabItems,
+);
+
+router.delete(
+  '/:vocabItemId',
+  authenticateAccessToken,
+  validateUUIDsInParams(['vocabItemId']),
+  handleDeleteVocabItem,
 );
 
 export default router;

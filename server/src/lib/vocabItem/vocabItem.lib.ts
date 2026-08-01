@@ -1,6 +1,6 @@
 import { Op, UniqueConstraintError, WhereOptions } from 'sequelize';
 import VocabItem from '../../db/models/vocabItem.model';
-import { ValidationError } from '../../utils/errors';
+import { NotFoundError, ValidationError } from '../../utils/errors';
 
 export interface SaveVocabItemInput {
   userId: string;
@@ -12,6 +12,11 @@ export interface SaveVocabItemInput {
 export interface SaveVocabItemResult {
   item: VocabItem;
   created: boolean;
+}
+
+export interface DeleteVocabItemInput {
+  userId: string;
+  vocabItemId: string;
 }
 
 export interface ListVocabItemsInput {
@@ -77,6 +82,19 @@ export async function saveVocabItem(input: SaveVocabItemInput): Promise<SaveVoca
       }
     }
     throw err;
+  }
+}
+
+// Deletes a single vocab item owned by the user. Scoping the destroy by userId
+// (rather than fetching then checking) means another user's item is never
+// removed and its existence is not revealed: a missing or non-owned id both
+// surface as NotFoundError.
+export async function deleteVocabItem(input: DeleteVocabItemInput): Promise<void> {
+  const deletedCount = await VocabItem.destroy({
+    where: { id: input.vocabItemId, userId: input.userId },
+  });
+  if (deletedCount === 0) {
+    throw new NotFoundError('Vocab item not found');
   }
 }
 

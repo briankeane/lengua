@@ -3,8 +3,13 @@ import sinon from 'sinon';
 import tk from 'timekeeper';
 import { UniqueConstraintError } from 'sequelize';
 import VocabItem from '../../db/models/vocabItem.model';
-import { saveVocabItem, listVocabItems, serializeVocabItem } from './vocabItem.lib';
-import { ValidationError } from '../../utils/errors';
+import {
+  saveVocabItem,
+  listVocabItems,
+  serializeVocabItem,
+  deleteVocabItem,
+} from './vocabItem.lib';
+import { NotFoundError, ValidationError } from '../../utils/errors';
 import { createUser, createVocabItem } from '../../test/testDataGenerator';
 
 describe('saveVocabItem', () => {
@@ -299,6 +304,61 @@ describe('listVocabItems', () => {
       thrown = err;
     }
     expect(thrown).to.be.instanceOf(ValidationError);
+  });
+});
+
+describe('deleteVocabItem', () => {
+  afterEach(() => {
+    sinon.restore();
+    tk.reset();
+  });
+
+  it('deletes the item owned by the user', async () => {
+    const user = await createUser();
+    const [item] = await seedItems(user.id, 1);
+
+    await deleteVocabItem({ userId: user.id, vocabItemId: item.id });
+
+    expect(await VocabItem.findByPk(item.id)).to.equal(null);
+  });
+
+  it('leaves the user other items untouched', async () => {
+    const user = await createUser();
+    const [first, second] = await seedItems(user.id, 2);
+
+    await deleteVocabItem({ userId: user.id, vocabItemId: first.id });
+
+    expect(await VocabItem.findByPk(second.id)).to.not.equal(null);
+  });
+
+  it('throws NotFoundError when the item does not exist', async () => {
+    const user = await createUser();
+
+    let thrown: unknown;
+    try {
+      await deleteVocabItem({
+        userId: user.id,
+        vocabItemId: '00000000-0000-0000-0000-000000000000',
+      });
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).to.be.instanceOf(NotFoundError);
+  });
+
+  it('throws NotFoundError (not deletion) when the item belongs to another user', async () => {
+    const user = await createUser();
+    const other = await createUser();
+    const [item] = await seedItems(other.id, 1);
+
+    let thrown: unknown;
+    try {
+      await deleteVocabItem({ userId: user.id, vocabItemId: item.id });
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).to.be.instanceOf(NotFoundError);
+    expect(await VocabItem.findByPk(item.id)).to.not.equal(null);
   });
 });
 

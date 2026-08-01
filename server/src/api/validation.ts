@@ -43,6 +43,26 @@ export function checkBodyNonEmpty(strArray: string[]): RequestHandler {
   };
 }
 
+export function checkBodyMaxLength(limits: Record<string, number>): RequestHandler {
+  return (req, res, next) => {
+    const tooLong = Object.entries(limits).filter(([field, max]) => {
+      const value = (req.body as Record<string, unknown>)[field];
+      return typeof value === 'string' && value.length > max;
+    });
+    if (tooLong.length > 0) {
+      return next(
+        new ValidationError(
+          `Body parameter(s) exceed max length: ${tooLong
+            .map(([field, max]) => `${field} (max ${max})`)
+            .join(', ')}`,
+          { tooLong: tooLong.map(([field]) => field) },
+        ),
+      );
+    }
+    return next();
+  };
+}
+
 export function checkBodyForAtLeastOneOf(strArray: string[]): RequestHandler {
   return (req, res, next) => {
     const existing = strArray.filter((str) => Object.prototype.hasOwnProperty.call(req.body, str));

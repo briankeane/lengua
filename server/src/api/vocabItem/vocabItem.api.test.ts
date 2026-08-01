@@ -101,6 +101,26 @@ describe('VocabItem API', function () {
         .expect(400);
     });
 
+    it('returns 400 when targetText exceeds the max length', async function () {
+      const { token } = await createUserWithToken();
+
+      await request(app)
+        .post('/v1/vocab-items')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ...VALID_BODY, targetText: 'a'.repeat(513) })
+        .expect(400);
+    });
+
+    it('returns 400 when targetLanguageCode exceeds the max length', async function () {
+      const { token } = await createUserWithToken();
+
+      await request(app)
+        .post('/v1/vocab-items')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ...VALID_BODY, targetLanguageCode: 'e'.repeat(21) })
+        .expect(400);
+    });
+
     it('returns 401 without authentication', async function () {
       await request(app).post('/v1/vocab-items').send(VALID_BODY).expect(401);
     });

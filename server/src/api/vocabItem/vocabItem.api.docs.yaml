@@ -1,0 +1,109 @@
+paths:
+  /v1/vocab-items:
+    post:
+      tags:
+        - VocabItems
+      summary: Save a translated word or phrase
+      description: >
+        Saves a locally-translated word or phrase to the authenticated user's vocab
+        list for later review. Idempotent per user: saving the same target text in the
+        same language returns the existing item instead of creating a duplicate. The
+        owning user is taken from the token; a `userId` in the body is ignored.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - targetLanguageCode
+                - sourceText
+                - targetText
+              properties:
+                targetLanguageCode:
+                  type: string
+                  maxLength: 20
+                  description: Target language code (canonicalized to lowercase).
+                  example: es
+                sourceText:
+                  type: string
+                  maxLength: 512
+                  description: The phrase in the user's language.
+                  example: the dog
+                targetText:
+                  type: string
+                  maxLength: 512
+                  description: The phrase in the target language.
+                  example: el perro
+      responses:
+        '201':
+          description: A new vocab item was created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VocabItem'
+        '200':
+          description: A matching item already existed; the existing item is returned unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VocabItem'
+        '400':
+          description: Missing or empty required field
+        '401':
+          description: Authentication required
+
+components:
+  schemas:
+    VocabItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        targetLanguageCode:
+          type: string
+          example: es
+        sourceText:
+          type: string
+          example: the dog
+        targetText:
+          type: string
+          example: el perro
+        targetTextNormalized:
+          type: string
+          example: el perro
+        familiarity:
+          type: integer
+          example: 0
+        lastSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+        timesSeen:
+          type: integer
+          example: 0
+        timesCorrect:
+          type: integer
+          example: 0
+        timesIncorrect:
+          type: integer
+          example: 0
+        lastOutcome:
+          type: string
+          nullable: true
+        nextDueAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time

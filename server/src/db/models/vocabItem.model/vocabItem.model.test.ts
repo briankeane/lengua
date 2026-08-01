@@ -9,26 +9,23 @@ describe('VocabItem model', () => {
       userId: user.id,
       targetLanguageCode: 'es',
       sourceText: "Where's the bathroom?",
-      term: '¿Dónde está el baño?',
-      termNormalized: 'donde esta el bano',
-      itemType: 'phrase',
+      targetText: '¿Dónde está el baño?',
+      targetTextNormalized: '¿dónde está el baño?',
     });
 
     expect(item.id).to.be.a('string');
-    expect(item.translationSource).to.equal('ai');
     expect(item.familiarity).to.equal(0);
     expect(item.timesSeen).to.equal(0);
   });
 
-  it('enforces per-user uniqueness on (userId, targetLanguageCode, termNormalized)', async () => {
+  it('enforces per-user uniqueness on (userId, targetLanguageCode, targetTextNormalized)', async () => {
     const user = await createUser();
     const base = {
       userId: user.id,
       targetLanguageCode: 'es',
       sourceText: 'dog',
-      term: 'perro',
-      termNormalized: 'perro',
-      itemType: 'word' as const,
+      targetText: 'perro',
+      targetTextNormalized: 'perro',
     };
     await VocabItem.create(base);
     let threw = false;
@@ -40,15 +37,14 @@ describe('VocabItem model', () => {
     expect(threw).to.equal(true);
   });
 
-  it('allows the same normalized term for different users', async () => {
+  it('allows the same normalized target text for different users', async () => {
     const [a, b] = [await createUser(), await createUser()];
     const shape = (userId: string) => ({
       userId,
       targetLanguageCode: 'es',
       sourceText: 'dog',
-      term: 'perro',
-      termNormalized: 'perro',
-      itemType: 'word' as const,
+      targetText: 'perro',
+      targetTextNormalized: 'perro',
     });
     await VocabItem.create(shape(a.id));
     const second = await VocabItem.create(shape(b.id));

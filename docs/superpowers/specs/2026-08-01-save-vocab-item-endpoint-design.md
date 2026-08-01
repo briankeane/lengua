@@ -1,47 +1,67 @@
 # Save Vocab Item Endpoint — Design
 
 **Date:** 2026-08-01
-**Status:** Approved (pending Codex architecture check)
+**Status:** Approved (Codex architecture check complete)
 
 ## Summary
 
 Add an authenticated endpoint that lets the iOS client **save a translated word or
 phrase** to the user's vocab list for later review. The client translates locally and
-sends the finished translation; the server only persists it as a `VocabItem`.
+sends the finished translation; the server only persists it as a `VocabItem`. No AI
+translation happens on the server.
 
-There is no separate `Phrase` or `Translation` table — a "phrase" is a `VocabItem` with
-`itemType: 'phrase'`, and the "translation" is the `sourceText` ↔ `term` pair on that
-row. This endpoint is the first vocab lib/api module and follows the existing
-`auth`/`user` module patterns.
+There is no separate `Phrase` or `Translation` table — a saved translation is a
+`VocabItem` row: `sourceText` (the user's language) paired with `targetText` (the
+target language).
 
-This feature also **removes the `translationSource` column** from `VocabItem`. The
-AI-vs-user provenance distinction is not acted on anywhere, so the column is dead weight.
-Ownership is already captured by `userId`.
+This feature also **trims the `VocabItem` model** of columns that are not acted on
+anywhere. The table has no data yet, so this is a clean schema change.
 
 ## Scope
 
-Two parts, shipped as separate commits within one PR:
+Shipped as separate commits within one PR:
 
-1. **Remove `translationSource`** from the `VocabItem` model (new drop migration + model +
-   barrel + tests).
+1. **Model reshape** — rename + drop columns on `VocabItem` (one migration).
 2. **`POST /v1/vocab-items`** — create/save a vocab item, idempotent on duplicates.
 
 Out of scope: listing/reading/updating/deleting vocab items, SRS scheduling, any AI
-translation on the server, word-vs-phrase-specific behavior (both are handled uniformly).
+translation on the server, word-vs-phrase distinction.
 
-## Part 1 — Remove `translationSource`
+## Part 1 — Model reshape
 
-- **New migration** removes the `translationSource` column and drops the Postgres enum
-  type `enum_vocabItems_translationSource`. `down` re-adds the column
-  (`ENUM('ai','user')`, `allowNull: false`, `defaultValue: 'ai'`) and the enum type.
-  - Rationale for a new migration rather than editing `20260731194616-create-vocab-items.js`:
-    that migration is already merged (PR #14); editing an already-run migration would not
-    drop the column for teammates/CI who already ran it.
-- **`vocabItem.model.ts`**: delete `TRANSLATION_SOURCES`, `TranslationSource`, the
-  `translationSource` field declaration, and its column definition.
-- **`index.ts` barrel**: drop the removed named exports.
-- **Model test**: remove assertions referencing `translationSource`.
-- **Factory** (`test/testDataGenerator.ts`): no change — it never set `translationSource`.
+One new forward migration (not an edit of the merged `20260731194616-create-vocab-items.js`;
+teammates/CI may have already run it, so schema changes must move forward):
+
+| Change | Detail |
+| ------ | ------ |
+| **rename** | `term` → `targetText` |
+| **rename** | `termNormalized` → `targetTextNormalized` |
+| **drop**   | `translationSource` column + Postgres type `enum_vocabItems_translationSource` |
+| **drop**   | `itemType` column + Postgres type `enum_vocabItems_itemType` |
+| **drop**   | `partOfSpeech` column |
+
+Migration ordering: rename the two columns, remove the three columns, then `DROP TYPE`
+the two enum types (drop the columns before their enum types, or Postgres refuses).
+The unique index still functions after the rename (Postgres tracks columns by identity);
+optionally rename it `vocab_items_user_lang_term_unique` → `vocab_items_user_lang_targettext_unique`
+for clarity. `down` reverses everything (re-add enum columns with prior defaults, rename back).
+
+**Model / barrel / test / factory updates:**
+- `vocabItem.model.ts`: delete `VOCAB_ITEM_TYPES`, `VocabItemType`, `TRANSLATION_SOURCES`,
+  `TranslationSource`; rename `term`/`termNormalized` field declarations and column defs to
+  `targetText`/`targetTextNormalized`; remove `itemType`, `translationSource`,
+  `partOfSpeech` declarations and column defs; update `termNormalized` → `targetTextNormalized`
+  in the `indexes` array.
+- `index.ts` barrel: drop the removed named exports.
+- `vocabItem.model.test.ts`: update to the new column set.
+- `test/testDataGenerator.ts` `createVocabItem` factory: rename `term`/`termNormalized`
+  overrides to `targetText`/`targetTextNormalized`; drop the `itemType` override.
+
+### Final `VocabItem` columns after reshape
+
+`id`, `userId`, `targetLanguageCode`, `sourceText`, `targetText`, `targetTextNormalized`,
+`familiarity`, `lastSeenAt`, `timesSeen`, `timesCorrect`, `timesIncorrect`, `lastOutcome`,
+`nextDueAt`, `createdAt`, `updatedAt`.
 
 ## Part 2 — `POST /v1/vocab-items`
 
@@ -52,48 +72,44 @@ the token — **never** from the request body. A `userId` present in the body is
 
 ### Request body
 
-| Field                | Type                   | Required | Notes                               |
-| -------------------- | ---------------------- | -------- | ----------------------------------- |
-| `targetLanguageCode` | string                 | yes      | e.g. `"es"`                         |
-| `sourceText`         | string                 | yes      | user's language, e.g. `"the dog"`   |
-| `term`               | string                 | yes      | target language, e.g. `"el perro"`  |
-| `itemType`           | `"word" \| "phrase"`   | yes      | enum-validated (`VOCAB_ITEM_TYPES`) |
-| `partOfSpeech`       | string \| null         | no       | optional                            |
+| Field                | Type   | Required | Notes                              |
+| -------------------- | ------ | -------- | ---------------------------------- |
+| `targetLanguageCode` | string | yes      | non-empty, e.g. `"es"`             |
+| `sourceText`         | string | yes      | non-empty; user's language         |
+| `targetText`         | string | yes      | non-empty; target language         |
 
-**Server-owned (client must NOT send):** `id`, `userId`, `termNormalized`, and all
-SRS/stats fields (`familiarity`, `lastSeenAt`, `timesSeen`, `timesCorrect`,
-`timesIncorrect`, `lastOutcome`, `nextDueAt`), plus `createdAt`/`updatedAt`. These come
-from model defaults.
+Three required fields, nothing optional. **Server-owned (client must NOT send):** `id`,
+`userId`, `targetTextNormalized`, and all SRS/stats fields (`familiarity`, `lastSeenAt`,
+`timesSeen`, `timesCorrect`, `timesIncorrect`, `lastOutcome`, `nextDueAt`), plus
+`createdAt`/`updatedAt`.
 
 ### Normalization & duplicates
 
-- `termNormalized = term.trim().normalize('NFC').toLowerCase()` — computed server-side.
-  `NFC` first so a composed and a decomposed `é` don't slip past uniqueness; accents are
-  **preserved** (`perró` ≠ `perro`); case and surrounding whitespace are not (`"Perro"`
-  collides with `"perro"`). `toLowerCase()` is JS Unicode lowercase, not locale-aware
-  folding — acceptable for v1.
+- `targetTextNormalized = targetText.trim().normalize('NFC').toLowerCase()` — computed
+  server-side. `NFC` first so composed vs decomposed accents don't slip past uniqueness;
+  accents are **preserved** (`perró` ≠ `perro`); case and surrounding whitespace are not
+  (`"Perro"` collides with `"perro"`). `toLowerCase()` is JS Unicode lowercase, not
+  locale-aware folding — acceptable for v1.
 - `targetLanguageCode` is canonicalized to lowercase before storing/matching, so `"ES"`
-  and `"es"` are the same language (prevents duplicate leakage through the unique key).
-- Duplicate detection uses the existing unique index
-  `(userId, targetLanguageCode, termNormalized)`.
-- **Uniqueness does not include `sourceText`.** Two different source phrases that
-  translate to the same `term` in the same language collide (e.g. `"dog" → "perro"` and
-  `"hound" → "perro"` are one row). This is intended: the vocab list is keyed on the
-  target-language term the user is learning. The first-saved `sourceText` wins; a later
-  duplicate save returns the existing row unchanged (does not overwrite `sourceText`).
-- **Required-string validation:** `term`, `sourceText`, and `targetLanguageCode` must be
-  non-empty after trimming — reject `""` / `"   "` with `400` (presence-only checks are
-  not enough, or `termNormalized` could become `""`).
-- `partOfSpeech`: missing or empty string coerces to `null`.
+  and `"es"` are the same language.
+- Duplicate detection uses the unique index
+  `(userId, targetLanguageCode, targetTextNormalized)`.
+- **Uniqueness does not include `sourceText`.** Two source phrases that translate to the
+  same `targetText` in the same language collide (`"dog" → "perro"` and `"hound" → "perro"`
+  are one row). Intended: the list is keyed on the target-language term being learned. The
+  first-saved `sourceText` wins; a later duplicate save returns the existing row unchanged.
+- **Required-string validation:** `targetLanguageCode`, `sourceText`, `targetText` must be
+  non-empty after trimming — reject `""` / `"   "` with `400` (presence-only checks are not
+  enough, or `targetTextNormalized` could become `""`).
 
 ### Responses
 
-| Status            | When                                                             | Body                     |
-| ----------------- | --------------------------------------------------------------- | ------------------------ |
-| `201 Created`     | New item saved                                                  | full `VocabItem` JSON    |
+| Status            | When                                                             | Body                      |
+| ----------------- | --------------------------------------------------------------- | ------------------------- |
+| `201 Created`     | New item saved                                                  | full `VocabItem` JSON     |
 | `200 OK`          | Matching item already exists; returned **unchanged** (no upsert) | existing `VocabItem` JSON |
-| `400 Bad Request` | Missing/invalid field                                           | standard error shape     |
-| `401 Unauthorized`| Missing/invalid token                                           | standard error shape     |
+| `400 Bad Request` | Missing/empty field                                             | standard error shape      |
+| `401 Unauthorized`| Missing/invalid token                                           | standard error shape      |
 
 The client treats `200` and `201` identically ("saved"). The existing row is never
 overwritten on a duplicate save.
@@ -106,10 +122,8 @@ overwritten on a duplicate save.
   "userId": "uuid",
   "targetLanguageCode": "es",
   "sourceText": "the dog",
-  "term": "el perro",
-  "termNormalized": "el perro",
-  "itemType": "phrase",
-  "partOfSpeech": null,
+  "targetText": "el perro",
+  "targetTextNormalized": "el perro",
   "familiarity": 0,
   "lastSeenAt": null,
   "timesSeen": 0,
@@ -117,8 +131,8 @@ overwritten on a duplicate save.
   "timesIncorrect": 0,
   "lastOutcome": null,
   "nextDueAt": null,
-  "createdAt": "ISO-8601",
-  "updatedAt": "ISO-8601"
+  "createdAt": "2026-08-01T00:00:00.000Z",
+  "updatedAt": "2026-08-01T00:00:00.000Z"
 }
 ```
 
@@ -126,23 +140,21 @@ overwritten on a duplicate save.
 
 - **lib** — `server/src/lib/vocabItem/` (`index.ts`, `vocabItem.lib.ts`,
   `vocabItem.lib.test.ts`). `saveVocabItem({ userId, targetLanguageCode, sourceText,
-  term, itemType, partOfSpeech })`:
-  1. canonicalize `targetLanguageCode` (lowercase) and compute `termNormalized`,
-  2. look up existing by `(userId, targetLanguageCode, termNormalized)`; if found return
-     `{ item, created: false }`,
-  3. else `VocabItem.create(...)` inside a `try/catch` — on
-     `Sequelize.UniqueConstraintError` (the race: a concurrent insert won), re-fetch by
-     the unique tuple and return `{ item, created: false }`; otherwise return
+  targetText })`:
+  1. canonicalize `targetLanguageCode` (lowercase) and compute `targetTextNormalized`,
+  2. look up existing by `(userId, targetLanguageCode, targetTextNormalized)`; if found
+     return `{ item, created: false }`,
+  3. else `VocabItem.create(...)` inside `try/catch` — on
+     `Sequelize.UniqueConstraintError` (concurrent insert won the race), re-fetch by the
+     unique tuple and return `{ item, created: false }`; otherwise return
      `{ item, created: true }`. Race handling lives in the lib (persistence contract),
      not the controller.
 - **api** — `server/src/api/vocabItem/` (`index.ts`, `vocabItem.api.ts`,
   `vocabItem.api.test.ts`, `vocabItem.api.docs.yaml`). Controller maps
   `created` → `201`/`200`. Mount `/v1/vocab-items` in `api/routes.ts`.
-- **validation** — `checkBodyFor(['targetLanguageCode', 'sourceText', 'term',
-  'itemType'])` + `checkBodyEnum('itemType', VOCAB_ITEM_TYPES)` + non-empty-after-trim
-  checks on `term`/`sourceText`/`targetLanguageCode` (extend validation middleware if it
-  only checks presence). `userId` in the body is ignored; other server-owned fields
-  (`familiarity`, etc.) are ignored for v1.
+- **validation** — `checkBodyFor(['targetLanguageCode', 'sourceText', 'targetText'])`
+  plus non-empty-after-trim checks on all three (extend the validation middleware if it
+  only checks presence). `userId` in the body is ignored.
 
 ## Testing (TDD)
 
@@ -151,8 +163,8 @@ Follow the CLAUDE.md endpoint procedure — lib tests first, then integration:
 **lib (`vocabItem.lib.test.ts`):**
 - creates a new item and returns `{ created: true }`
 - returns the existing item with `{ created: false }` on a duplicate `(userId, lang,
-  termNormalized)` and does not create a second row / does not overwrite `sourceText`
-- computes `termNormalized` (trim + NFC + lowercase, accents preserved); `perró` ≠ `perro`
+  targetTextNormalized)`; does not create a second row or overwrite `sourceText`
+- computes `targetTextNormalized` (trim + NFC + lowercase, accents preserved); `perró` ≠ `perro`
 - canonicalizes `targetLanguageCode` (`"ES"` matches `"es"`)
 - treats different `targetLanguageCode` as non-duplicate
 - `UniqueConstraintError` path: stub `VocabItem.create` to throw it, assert the lib
@@ -161,23 +173,7 @@ Follow the CLAUDE.md endpoint procedure — lib tests first, then integration:
 **api (`vocabItem.api.test.ts`, Supertest):**
 - `201` on new save with correct body
 - `200` on duplicate save, returns the existing row unchanged
-- `400` on missing required field / invalid `itemType`
-- `400` on empty/whitespace-only `term`, `sourceText`, or `targetLanguageCode`
+- `400` on missing required field
+- `400` on empty/whitespace-only `targetLanguageCode`, `sourceText`, or `targetText`
 - `401` when unauthenticated
 - `userId` in the body is ignored; the item is owned by the token's user
-
-## Concurrency note
-
-Two simultaneous saves of the same new term could both pass the existence check and race
-to insert, with the second insert violating the unique index. **Handled in v1** (not
-deferred): `saveVocabItem` catches `Sequelize.UniqueConstraintError`, re-fetches by the
-unique tuple, and returns `{ item, created: false }` → `200`. The unique index is the
-source of truth for correctness; the check-then-create is just an optimization to avoid
-the throw on the common path.
-
-## Migration note
-
-Drop the **column first, then the enum type** (`enum_vocabItems_itemType` is unaffected;
-only `enum_vocabItems_translationSource` is dropped). Dropping the enum type before the
-column, or while anything still references it, will fail on Postgres.
-```

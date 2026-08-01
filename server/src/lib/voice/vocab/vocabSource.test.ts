@@ -23,6 +23,19 @@ describe('getSessionVocab', function () {
     assert.equal(result.length, SESSION_WORD_COUNT);
   });
 
+  it('selects the same set deterministically when scheduling columns tie', async function () {
+    const user = await createUser();
+    for (let i = 0; i < SESSION_WORD_COUNT + 3; i++) {
+      await createVocabItem({ userId: user.id, term: `palabra-${i}`, targetLanguageCode: 'es' });
+    }
+    const first = await getSessionVocab({ userId: user.id, targetLanguage: 'es' });
+    const second = await getSessionVocab({ userId: user.id, targetLanguage: 'es' });
+    assert.deepEqual(
+      first.map((v) => v.id),
+      second.map((v) => v.id),
+    );
+  });
+
   it('returns the seam shape with familiarity', async function () {
     const user = await createUser();
     await createVocabItem({

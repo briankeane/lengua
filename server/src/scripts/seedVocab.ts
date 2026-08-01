@@ -15,6 +15,11 @@ function normalize(term: string): string {
 }
 
 async function main(): Promise<void> {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('Refusing to run seedVocab in production.');
+    process.exit(1);
+  }
+
   const email = process.argv[2];
   if (!email) {
     console.error('Usage: node dist/scripts/seedVocab.js <userEmail>');
@@ -26,8 +31,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  let created = 0;
   for (const s of SEED) {
-    await VocabItem.findOrCreate({
+    const [, wasCreated] = await VocabItem.findOrCreate({
       where: { userId: user.id, targetLanguageCode: 'es', termNormalized: normalize(s.term) },
       defaults: {
         userId: user.id,
@@ -39,8 +45,11 @@ async function main(): Promise<void> {
         translationSource: 'ai',
       },
     });
+    if (wasCreated) created += 1;
   }
-  console.log(`Seeded ${SEED.length} Spanish vocab items for ${email}`);
+  console.log(
+    `Seeded ${created} new Spanish vocab items for ${email} (${SEED.length - created} already existed).`,
+  );
   process.exit(0);
 }
 

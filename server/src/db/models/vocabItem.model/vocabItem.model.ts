@@ -7,22 +7,13 @@ import {
 } from 'sequelize';
 import sequelize from '../../sequelize';
 
-export const VOCAB_ITEM_TYPES = ['word', 'phrase'] as const;
-export type VocabItemType = (typeof VOCAB_ITEM_TYPES)[number];
-
-export const TRANSLATION_SOURCES = ['ai', 'user'] as const;
-export type TranslationSource = (typeof TRANSLATION_SOURCES)[number];
-
 class VocabItem extends Model<InferAttributes<VocabItem>, InferCreationAttributes<VocabItem>> {
   declare id: CreationOptional<string>;
   declare userId: string;
   declare targetLanguageCode: string;
   declare sourceText: string;
-  declare term: string;
-  declare termNormalized: string;
-  declare itemType: VocabItemType;
-  declare partOfSpeech: CreationOptional<string | null>;
-  declare translationSource: CreationOptional<TranslationSource>;
+  declare targetText: string;
+  declare targetTextNormalized: string;
   declare familiarity: CreationOptional<number>;
   declare lastSeenAt: CreationOptional<Date | null>;
   declare timesSeen: CreationOptional<number>;
@@ -52,15 +43,8 @@ VocabItem.init(
     },
     targetLanguageCode: { type: DataTypes.STRING, allowNull: false },
     sourceText: { type: DataTypes.TEXT, allowNull: false },
-    term: { type: DataTypes.TEXT, allowNull: false },
-    termNormalized: { type: DataTypes.TEXT, allowNull: false },
-    itemType: { type: DataTypes.ENUM(...VOCAB_ITEM_TYPES), allowNull: false },
-    partOfSpeech: { type: DataTypes.STRING, allowNull: true },
-    translationSource: {
-      type: DataTypes.ENUM(...TRANSLATION_SOURCES),
-      allowNull: false,
-      defaultValue: 'ai',
-    },
+    targetText: { type: DataTypes.TEXT, allowNull: false },
+    targetTextNormalized: { type: DataTypes.TEXT, allowNull: false },
     familiarity: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     lastSeenAt: { type: DataTypes.DATE, allowNull: true },
     timesSeen: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
@@ -75,7 +59,7 @@ VocabItem.init(
     sequelize,
     modelName: 'vocabItem',
     indexes: [
-      { unique: true, fields: ['userId', 'targetLanguageCode', 'termNormalized'] },
+      { unique: true, fields: ['userId', 'targetLanguageCode', 'targetTextNormalized'] },
       { fields: ['userId', 'familiarity'] },
       { fields: ['userId', 'nextDueAt'] },
     ],

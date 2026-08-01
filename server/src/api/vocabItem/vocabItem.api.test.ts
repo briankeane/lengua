@@ -250,6 +250,24 @@ describe('VocabItem API', function () {
         .expect(400);
     });
 
+    it('returns 400 when cursor is repeated (parses to an array)', async function () {
+      const { token } = await createUserWithToken();
+
+      await request(app)
+        .get('/v1/vocab-items?cursor=a&cursor=b')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('returns 400 when targetLanguageCode is repeated (parses to an array)', async function () {
+      const { token } = await createUserWithToken();
+
+      await request(app)
+        .get('/v1/vocab-items?targetLanguageCode=es&targetLanguageCode=it')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
     it('returns 400 on an unknown query parameter', async function () {
       const { token } = await createUserWithToken();
 

@@ -25,14 +25,13 @@ export async function handleCreateVocabItem(req: Request, res: Response, next: N
 export async function handleListVocabItems(req: Request, res: Response, next: NextFunction) {
   try {
     const authReq = req as AuthenticatedRequest;
-    const { targetLanguageCode, cursor } = req.query;
     const limit = parseLimit(req.query.limit);
 
     const { items, nextCursor } = await listVocabItems({
       userId: authReq.auth.id,
       limit,
-      targetLanguageCode: typeof targetLanguageCode === 'string' ? targetLanguageCode : undefined,
-      cursor: typeof cursor === 'string' ? cursor : undefined,
+      targetLanguageCode: singleStringParam(req.query.targetLanguageCode, 'targetLanguageCode'),
+      cursor: singleStringParam(req.query.cursor, 'cursor'),
     });
 
     res.status(200).json({
@@ -42,6 +41,19 @@ export async function handleListVocabItems(req: Request, res: Response, next: Ne
   } catch (err) {
     next(err);
   }
+}
+
+// A repeated query param (e.g. ?cursor=a&cursor=b) parses to an array. Reject it
+// rather than silently coercing to undefined, which would quietly restart
+// pagination or drop the language filter instead of surfacing the bad request.
+function singleStringParam(value: unknown, name: string): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== 'string') {
+    throw new ValidationError(`Invalid Value: ${name} must be a single value`);
+  }
+  return value;
 }
 
 function parseLimit(raw: unknown): number {

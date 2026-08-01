@@ -24,14 +24,17 @@ paths:
               properties:
                 targetLanguageCode:
                   type: string
+                  maxLength: 20
                   description: Target language code (canonicalized to lowercase).
                   example: es
                 sourceText:
                   type: string
+                  maxLength: 512
                   description: The phrase in the user's language.
                   example: the dog
                 targetText:
                   type: string
+                  maxLength: 512
                   description: The phrase in the target language.
                   example: el perro
       responses:

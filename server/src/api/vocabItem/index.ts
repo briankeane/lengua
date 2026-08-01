@@ -1,11 +1,18 @@
 import express from 'express';
 import { authenticateAccessToken } from '../security';
-import { checkBodyFor, checkBodyNonEmpty, checkBodyMaxLength } from '../validation';
-import { handleCreateVocabItem } from './vocabItem.api';
+import {
+  checkBodyFor,
+  checkBodyNonEmpty,
+  checkBodyMaxLength,
+  checkQueryForNoExtraFields,
+} from '../validation';
+import { handleCreateVocabItem, handleListVocabItems } from './vocabItem.api';
 
 const router = express.Router();
 
 const REQUIRED_FIELDS = ['targetLanguageCode', 'sourceText', 'targetText'];
+
+const ALLOWED_QUERY_PARAMS = ['targetLanguageCode', 'limit', 'cursor'];
 
 // Caps keep normalized text under Postgres' btree unique-index row-size limit and
 // prevent unbounded language-code values from overflowing the varchar column.
@@ -22,6 +29,13 @@ router.post(
   checkBodyNonEmpty(REQUIRED_FIELDS),
   checkBodyMaxLength(MAX_LENGTHS),
   handleCreateVocabItem,
+);
+
+router.get(
+  '/',
+  authenticateAccessToken,
+  checkQueryForNoExtraFields(ALLOWED_QUERY_PARAMS),
+  handleListVocabItems,
 );
 
 export default router;

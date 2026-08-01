@@ -62,6 +62,12 @@ VocabItem.init(
       { unique: true, fields: ['userId', 'targetLanguageCode', 'targetTextNormalized'] },
       { fields: ['userId', 'familiarity'] },
       { fields: ['userId', 'nextDueAt'] },
+      // Back GET /v1/vocab-items keyset pagination (ORDER BY createdAt DESC, id DESC).
+      { name: 'vocab_items_user_created_id', fields: ['userId', 'createdAt', 'id'] },
+      {
+        name: 'vocab_items_user_lang_created_id',
+        fields: ['userId', 'targetLanguageCode', 'createdAt', 'id'],
+      },
     ],
   },
 );

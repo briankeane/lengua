@@ -1,5 +1,56 @@
 paths:
   /v1/vocab-items:
+    get:
+      tags:
+        - VocabItems
+      summary: List the authenticated user's vocab items
+      description: >
+        Returns the authenticated user's saved vocab items, newest first
+        (ordered by `createdAt` descending, with `id` as a stable tiebreak).
+        Uses keyset (cursor) pagination: pass the `nextCursor` from a response
+        back as the `cursor` query parameter to fetch the next page. A `null`
+        `nextCursor` means there are no more items. Items added while paging do
+        not shift or duplicate results. No total count is returned. Results are
+        always scoped to the token's user; internal fields (`userId`,
+        `targetTextNormalized`) are not exposed.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: targetLanguageCode
+          required: false
+          schema:
+            type: string
+            example: es
+          description: Optional exact filter, case-insensitive (canonicalized to lowercase).
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          description: Maximum items to return. Must be an integer between 1 and 100.
+        - in: query
+          name: cursor
+          required: false
+          schema:
+            type: string
+          description: >
+            Opaque pagination cursor from a previous response's `nextCursor`.
+            Treat it as a token; do not construct or parse it.
+      responses:
+        '200':
+          description: A page of the user's vocab items.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VocabItemList'
+        '400':
+          description: Invalid limit or malformed cursor, or an unknown query parameter
+        '401':
+          description: Authentication required
     post:
       tags:
         - VocabItems
@@ -107,3 +158,67 @@ components:
         updatedAt:
           type: string
           format: date-time
+    VocabItemListItem:
+      type: object
+      description: >
+        The public vocab item shape returned by list/read endpoints. Excludes
+        internal fields (`userId`, `targetTextNormalized`).
+      properties:
+        id:
+          type: string
+          format: uuid
+        targetLanguageCode:
+          type: string
+          example: es
+        sourceText:
+          type: string
+          example: the dog
+        targetText:
+          type: string
+          example: el perro
+        familiarity:
+          type: integer
+          example: 0
+        lastSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+        timesSeen:
+          type: integer
+          example: 0
+        timesCorrect:
+          type: integer
+          example: 0
+        timesIncorrect:
+          type: integer
+          example: 0
+        lastOutcome:
+          type: string
+          nullable: true
+        nextDueAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    VocabItemList:
+      type: object
+      properties:
+        vocabItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/VocabItemListItem'
+        pagination:
+          type: object
+          properties:
+            limit:
+              type: integer
+              example: 50
+            nextCursor:
+              type: string
+              nullable: true
+              description: Cursor for the next page, or null when there are no more items.

@@ -347,6 +347,38 @@ describe('Auth API', function () {
       assert.equal(user?.email, 'apple-apple-user-id-123@lengua.placeholder');
     });
 
+    it('trusts a verified email supplied as the string "true"', async function () {
+      stubApple(applePayload({ email_verified: 'true' as unknown as boolean }));
+
+      const res = await request(app)
+        .post('/v1/auth/apple')
+        .send({ identityToken: 'valid-id-token', firstName: 'Apple' });
+
+      assert.equal(res.status, 200);
+      const user = await User.findOne({ where: { appleId: 'apple-user-id-123' } });
+      assert.equal(user?.email, 'apple@example.com');
+      assert.equal(user?.verifiedEmail, 'apple@example.com');
+    });
+
+    it('does not link to an existing account on an unverified email', async function () {
+      await User.create({ email: 'apple@example.com', firstName: 'Existing' });
+
+      stubApple(applePayload({ email_verified: false }));
+
+      const res = await request(app)
+        .post('/v1/auth/apple')
+        .send({ identityToken: 'valid-id-token', firstName: 'Apple' });
+
+      assert.equal(res.status, 200);
+      // The pre-existing account must NOT be hijacked: appleId stays empty and a
+      // separate placeholder-email account is created for the Apple subject.
+      const existing = await User.findOne({ where: { email: 'apple@example.com' } });
+      assert.isNotOk(existing?.appleId);
+      const appleUser = await User.findOne({ where: { appleId: 'apple-user-id-123' } });
+      assert.equal(appleUser?.email, 'apple-apple-user-id-123@lengua.placeholder');
+      assert.isNotOk(appleUser?.verifiedEmail);
+    });
+
     it('matches an existing user by appleId (sub)', async function () {
       await User.create({
         email: 'old@example.com',

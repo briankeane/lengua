@@ -47,9 +47,14 @@ authorization — never in the identity token. So the endpoint accepts optional
 `firstName`/`lastName` in the body (as Playola's mobile signup does) and the
 client forwards them.
 
-`email_verified` is **not** hard-required (Playola does not enforce it; enforcing
-it risks rejecting Apple private-relay users). This differs deliberately from the
-Google upsert, which requires `email_verified === true`.
+`email_verified` does **not** gate sign-in (an unverified claim still logs the
+user in via the placeholder path, so no legitimate user — including Hide-My-Email
+relay users — is ever rejected). But the email is only **trusted** — for matching
+an existing account and for setting `verifiedEmail` — when Apple marks it
+verified. Apple returns `email_verified` as a boolean `true` or the string
+`"true"`; both count. An unverified email falls through to the placeholder,
+closing the account-takeover vector where an attacker-controlled Apple subject
+could otherwise link to an existing email account.
 
 ## Dependency
 

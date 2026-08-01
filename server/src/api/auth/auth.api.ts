@@ -1,5 +1,10 @@
 import { NextFunction, Request, Response } from 'express';
-import { googleSignInWithIdToken, login, signup } from '../../lib/auth';
+import {
+  appleSignInWithIdentityToken,
+  googleSignInWithIdToken,
+  login,
+  signup,
+} from '../../lib/auth';
 
 export async function handleSignup(req: Request, res: Response, next: NextFunction) {
   try {
@@ -30,6 +35,20 @@ export async function handleGoogleSignIn(req: Request, res: Response, next: Next
   try {
     const { idToken } = req.body;
     const { user, token } = await googleSignInWithIdToken({ idToken });
+    res.status(200).json({ user: user.jwtRepr(), token });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function handleAppleSignIn(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { identityToken, firstName, lastName } = req.body;
+    const { user, token } = await appleSignInWithIdentityToken({
+      identityToken,
+      firstName,
+      lastName,
+    });
     res.status(200).json({ user: user.jwtRepr(), token });
   } catch (err) {
     next(err);

@@ -33,14 +33,14 @@ verifying it, and upserting the user directly via a `googleId` column on `users`
 
 ## Field mapping (store the Apple equivalent of what Google stores)
 
-| Field              | Google source            | Apple source                                                     |
-| ------------------ | ------------------------ | ---------------------------------------------------------------- |
-| `appleId` (new)    | `googleId` = `sub`       | `sub` from verified identity token                               |
-| `email`            | token `email`            | token `email`, else placeholder `apple-${sub}@lengua.placeholder`|
-| `firstName`        | `given_name` ?? localpart| **body** `firstName` ?? email localpart                          |
-| `lastName`         | `family_name` ?? `''`    | **body** `lastName` ?? `''`                                      |
-| `verifiedEmail`    | `email`                  | `email` (when present)                                           |
-| `profileImageUrl`  | `picture`                | — (Apple provides none)                                          |
+| Field             | Google source             | Apple source                                                      |
+| ----------------- | ------------------------- | ----------------------------------------------------------------- |
+| `appleId` (new)   | `googleId` = `sub`        | `sub` from verified identity token                                |
+| `email`           | token `email`             | token `email`, else placeholder `apple-${sub}@lengua.placeholder` |
+| `firstName`       | `given_name` ?? localpart | **body** `firstName` ?? email localpart                           |
+| `lastName`        | `family_name` ?? `''`     | **body** `lastName` ?? `''`                                       |
+| `verifiedEmail`   | `email`                   | `email` (when present)                                            |
+| `profileImageUrl` | `picture`                 | — (Apple provides none)                                           |
 
 Apple returns the user's name only once, to the iOS client, on first
 authorization — never in the identity token. So the endpoint accepts optional

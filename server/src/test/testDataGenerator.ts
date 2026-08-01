@@ -2,6 +2,7 @@ import { faker } from '@faker-js/faker';
 import config from '../config/config';
 import User from '../db/models/user.model';
 import ConversationSession, { VoiceMode } from '../db/models/conversationSession.model';
+import VocabItem, { VocabItemType } from '../db/models/vocabItem.model';
 import { generateToken } from '../utils/jwt';
 
 if (config.NODE_ENV !== 'test') {
@@ -54,5 +55,27 @@ export async function createConversationSession(overrides: ConversationSessionOv
     provider: overrides.provider ?? 'elevenlabs',
     mode: overrides.mode ?? 'quiz',
     targetLanguageCode: overrides.targetLanguageCode ?? 'es',
+  });
+}
+
+type VocabItemOverrides = Partial<{
+  userId: string;
+  targetLanguageCode: string;
+  sourceText: string;
+  term: string;
+  termNormalized: string;
+  itemType: VocabItemType;
+}>;
+
+export async function createVocabItem(overrides: VocabItemOverrides = {}) {
+  const userId = overrides.userId ?? (await createUser()).id;
+  const term = overrides.term ?? 'perro';
+  return VocabItem.create({
+    userId,
+    targetLanguageCode: overrides.targetLanguageCode ?? 'es',
+    sourceText: overrides.sourceText ?? 'dog',
+    term,
+    termNormalized: overrides.termNormalized ?? term.toLowerCase(),
+    itemType: overrides.itemType ?? 'word',
   });
 }

@@ -74,6 +74,18 @@ describe('Auth API', function () {
 
       assert.equal(res.status, 400);
     });
+
+    it('rejects signups using the reserved Apple placeholder domain', async function () {
+      const res = await request(app).post('/v1/auth/signup').send({
+        email: 'apple-somesub@lengua.placeholder',
+        password: 'password123',
+        firstName: 'Squatter',
+      });
+
+      assert.equal(res.status, 400);
+      const user = await User.findOne({ where: { email: 'apple-somesub@lengua.placeholder' } });
+      assert.isNull(user);
+    });
   });
 
   describe('POST /v1/auth/login', function () {
@@ -329,6 +341,18 @@ describe('Auth API', function () {
       const res = await request(app)
         .post('/v1/auth/apple')
         .send({ identityToken: 'valid-id-token' });
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.user.firstName, 'apple');
+      assert.equal(res.body.user.lastName, '');
+    });
+
+    it('falls back to the email localpart when the name is an empty string', async function () {
+      stubApple(applePayload());
+
+      const res = await request(app)
+        .post('/v1/auth/apple')
+        .send({ identityToken: 'valid-id-token', firstName: '', lastName: '  ' });
 
       assert.equal(res.status, 200);
       assert.equal(res.body.user.firstName, 'apple');

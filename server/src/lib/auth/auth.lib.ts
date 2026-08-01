@@ -9,6 +9,15 @@ import { generateToken } from '../../utils/jwt';
 
 const SALT_ROUNDS = 10;
 
+// Reserved domain for synthetic emails minted when Apple withholds one. Kept
+// off-limits to user-supplied emails so a placeholder row can only ever be one
+// we created (which always carries the matching appleId).
+const APPLE_PLACEHOLDER_EMAIL_DOMAIN = 'lengua.placeholder';
+
+function isReservedPlaceholderEmail(email: string): boolean {
+  return email.toLowerCase().endsWith(`@${APPLE_PLACEHOLDER_EMAIL_DOMAIN}`);
+}
+
 export async function signup({
   email,
   password,
@@ -20,6 +29,10 @@ export async function signup({
   firstName: string;
   lastName?: string;
 }): Promise<{ user: User; token: string }> {
+  if (isReservedPlaceholderEmail(email)) {
+    throw new ValidationError('Invalid email address');
+  }
+
   const existing = await User.findOne({ where: { email } });
   if (existing) {
     throw new ConflictError('A user with this email already exists');
@@ -180,7 +193,14 @@ export async function appleSignInWithIdentityToken({
     throw new AuthenticationError('Apple authentication failed');
   }
 
-  const user = await upsertAppleUser({ appleUserId, email, firstName, lastName });
+  const user = await upsertAppleUser({
+    appleUserId,
+    email,
+    // Treat empty/whitespace client-supplied names as absent so the
+    // email-localpart fallback applies instead of storing a blank firstName.
+    firstName: firstName?.trim() ? firstName : undefined,
+    lastName: lastName?.trim() ? lastName : undefined,
+  });
   const token = await generateToken(user);
   return { user, token };
 }
@@ -224,7 +244,7 @@ async function upsertAppleUser({
     }
   }
 
-  const resolvedEmail = email ?? `apple-${appleUserId}@lengua.placeholder`;
+  const resolvedEmail = email ?? `apple-${appleUserId}@${APPLE_PLACEHOLDER_EMAIL_DOMAIN}`;
 
   try {
     return await User.create({

@@ -1,6 +1,11 @@
 import { NextFunction, Request, Response } from 'express';
 import { AuthenticatedRequest } from '../security';
-import { saveVocabItem, listVocabItems, serializeVocabItem } from '../../lib/vocabItem';
+import {
+  saveVocabItem,
+  listVocabItems,
+  deleteVocabItem,
+  serializeVocabItem,
+} from '../../lib/vocabItem';
 import { ValidationError } from '../../utils/errors';
 
 export const DEFAULT_LIST_LIMIT = 50;
@@ -38,6 +43,19 @@ export async function handleListVocabItems(req: Request, res: Response, next: Ne
       vocabItems: items.map(serializeVocabItem),
       pagination: { limit, nextCursor },
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function handleDeleteVocabItem(req: Request, res: Response, next: NextFunction) {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    await deleteVocabItem({
+      userId: authReq.auth.id,
+      vocabItemId: req.params.vocabItemId as string,
+    });
+    res.status(204).send();
   } catch (err) {
     next(err);
   }

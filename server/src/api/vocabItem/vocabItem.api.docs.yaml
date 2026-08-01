@@ -105,6 +105,35 @@ paths:
           description: Missing or empty required field
         '401':
           description: Authentication required
+  /v1/vocab-items/{vocabItemId}:
+    delete:
+      tags:
+        - VocabItems
+      summary: Delete a vocab item
+      description: >
+        Permanently deletes one of the authenticated user's vocab items. The item
+        must be owned by the token's user; deleting a non-existent item, or one
+        owned by another user, returns 404 (the other user's item is left
+        untouched and its existence is not revealed).
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: vocabItemId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The id of the vocab item to delete.
+      responses:
+        '204':
+          description: The item was deleted. No content is returned.
+        '400':
+          description: Malformed vocabItemId (not a UUID)
+        '401':
+          description: Authentication required
+        '404':
+          description: No vocab item with that id is owned by the authenticated user
 
 components:
   schemas:

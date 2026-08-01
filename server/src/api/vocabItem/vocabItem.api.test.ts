@@ -281,4 +281,56 @@ describe('VocabItem API', function () {
       await request(app).get('/v1/vocab-items').expect(401);
     });
   });
+
+  describe('DELETE /v1/vocab-items/:vocabItemId', function () {
+    it('deletes the item and returns 204', async function () {
+      const { user, token } = await createUserWithToken();
+      const item = await createVocabItem({ userId: user.id });
+
+      await request(app)
+        .delete(`/v1/vocab-items/${item.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(204);
+
+      assert.equal(await VocabItem.findByPk(item.id), null);
+    });
+
+    it('returns 404 when the item does not exist', async function () {
+      const { token } = await createUserWithToken();
+
+      await request(app)
+        .delete('/v1/vocab-items/00000000-0000-0000-0000-000000000000')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(404);
+    });
+
+    it("returns 404 and does not delete another user's item", async function () {
+      const { token } = await createUserWithToken();
+      const other = await createUserWithToken();
+      const item = await createVocabItem({ userId: other.user.id });
+
+      await request(app)
+        .delete(`/v1/vocab-items/${item.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(404);
+
+      assert.notEqual(await VocabItem.findByPk(item.id), null);
+    });
+
+    it('returns 400 on a malformed id', async function () {
+      const { token } = await createUserWithToken();
+
+      await request(app)
+        .delete('/v1/vocab-items/not-a-uuid')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('returns 401 without authentication', async function () {
+      const { user } = await createUserWithToken();
+      const item = await createVocabItem({ userId: user.id });
+
+      await request(app).delete(`/v1/vocab-items/${item.id}`).expect(401);
+    });
+  });
 });

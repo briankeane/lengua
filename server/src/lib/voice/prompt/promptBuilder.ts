@@ -26,11 +26,11 @@ function coreRules(): string {
   ].join('\n');
 }
 
-function languagePolicy(targetLanguage: string): string {
-  if (targetLanguage === 'es') {
-    return 'Speak in Spanish. Keep vocabulary and grammar appropriate for a learner; simplify if they struggle.';
-  }
-  return `Speak in the target language (${targetLanguage}). Simplify if the learner struggles.`;
+// v1 is Spanish-only: the mode fragments are written in Spanish, so the language
+// policy is too. `targetLanguage` is still threaded through (it is stored on the
+// session and selects the mode) but only 'es' is supported today.
+function languagePolicy(): string {
+  return 'Speak in Spanish. Keep vocabulary and grammar appropriate for a learner; simplify if they struggle.';
 }
 
 export function buildTutorPrompt(input: BuildTutorPromptInput): BuildTutorPromptResult {
@@ -46,12 +46,9 @@ export function buildTutorPrompt(input: BuildTutorPromptInput): BuildTutorPrompt
     speech: input.speech,
   });
 
-  const prompt = [coreRules(), languagePolicy(input.targetLanguage), '', modeInstructions].join(
-    '\n',
-  );
+  const prompt = [coreRules(), languagePolicy(), '', modeInstructions].join('\n');
 
-  const firstMessage =
-    input.targetLanguage === 'es' ? '¡Hola! ¿Listo para practicar?' : 'Hi! Ready to practice?';
+  const firstMessage = '¡Hola! ¿Listo para practicar?';
 
   return { prompt, firstMessage, promptVersion: PROMPT_VERSION, sessionVocab };
 }

@@ -9,10 +9,16 @@ export async function getSessionVocab(input: {
 }): Promise<VocabItem[]> {
   const rows = await VocabItemModel.findAll({
     where: { userId: input.userId, targetLanguageCode: input.targetLanguage },
+    // Never-seen/due first, then lower familiarity, then least-recently seen.
+    // createdAt + id are stable final tie-breakers so the same rows are picked
+    // deterministically when the scheduling columns tie (e.g. a fresh learner
+    // whose rows all share NULL nextDueAt/lastSeenAt).
     order: [
       ['nextDueAt', 'ASC NULLS FIRST'],
       ['familiarity', 'ASC'],
       ['lastSeenAt', 'ASC NULLS FIRST'],
+      ['createdAt', 'ASC'],
+      ['id', 'ASC'],
     ],
     limit: SESSION_WORD_COUNT,
   });

@@ -72,11 +72,15 @@ the token — **never** from the request body. A `userId` present in the body is
 
 ### Request body
 
-| Field                | Type   | Required | Notes                              |
-| -------------------- | ------ | -------- | ---------------------------------- |
-| `targetLanguageCode` | string | yes      | non-empty, e.g. `"es"`             |
-| `sourceText`         | string | yes      | non-empty; user's language         |
-| `targetText`         | string | yes      | non-empty; target language         |
+| Field                | Type   | Required | Notes                                        |
+| -------------------- | ------ | -------- | -------------------------------------------- |
+| `targetLanguageCode` | string | yes      | non-empty, ≤ 20 chars, e.g. `"es"`           |
+| `sourceText`         | string | yes      | non-empty, ≤ 512 chars; user's language      |
+| `targetText`         | string | yes      | non-empty, ≤ 512 chars; target language      |
+
+Length caps keep `targetTextNormalized` under Postgres' btree unique-index row-size
+limit and prevent an unbounded `targetLanguageCode` from overflowing its varchar column;
+exceeding a cap returns `400`.
 
 Three required fields, nothing optional. **Server-owned (client must NOT send):** `id`,
 `userId`, `targetTextNormalized`, and all SRS/stats fields (`familiarity`, `lastSeenAt`,
@@ -89,7 +93,10 @@ Three required fields, nothing optional. **Server-owned (client must NOT send):*
   server-side. `NFC` first so composed vs decomposed accents don't slip past uniqueness;
   accents are **preserved** (`perró` ≠ `perro`); case and surrounding whitespace are not
   (`"Perro"` collides with `"perro"`). `toLowerCase()` is JS Unicode lowercase, not
-  locale-aware folding — acceptable for v1.
+  locale-aware folding — acceptable for v1. Known limitation: for Turkish/Azeri the
+  dotted/dotless `I` casing differs from locale-aware folding, so `"IŞIK"` and `"ışık"`
+  can dedupe to distinct rows. No crash or data loss; revisit if those languages are
+  supported.
 - `targetLanguageCode` is canonicalized to lowercase before storing/matching, so `"ES"`
   and `"es"` are the same language.
 - Duplicate detection uses the unique index

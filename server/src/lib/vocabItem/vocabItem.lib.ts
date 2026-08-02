@@ -1,4 +1,5 @@
 import { literal, Op, UniqueConstraintError, WhereOptions } from 'sequelize';
+import sequelize from '../../db/sequelize';
 import VocabItem, { ReviewOutcome, ReviewTrack } from '../../db/models/vocabItem.model';
 import { NotFoundError, ValidationError } from '../../utils/errors';
 
@@ -385,56 +386,72 @@ export async function getReviewQueue(input: ReviewQueueInput): Promise<ReviewQue
 // Grades a single track of one owned card. Missing or non-owned ids surface as
 // NotFoundError (matching deleteVocabItem). Only the named track's stats and
 // schedule are touched; the other track is left untouched.
+//
+// The read-modify-write runs inside a transaction with a row lock
+// (SELECT ... FOR UPDATE) so concurrent grades of the same card serialize: each
+// reads the previous grade's committed state instead of racing on a stale read
+// and silently dropping a review. Familiarity is a Leitner box computed from the
+// prior value, so a plain atomic increment can't replace the lock.
 export async function gradeReview(input: GradeReviewInput): Promise<VocabItem> {
-  const item = await VocabItem.findOne({
-    where: { id: input.vocabItemId, userId: input.userId },
+  return sequelize.transaction(async (transaction) => {
+    const item = await VocabItem.findOne({
+      where: { id: input.vocabItemId, userId: input.userId },
+      lock: transaction.LOCK.UPDATE,
+      transaction,
+    });
+    if (!item) {
+      throw new NotFoundError('Vocab item not found');
+    }
+
+    const now = new Date();
+    const current =
+      input.direction === 'receptive'
+        ? {
+            familiarity: item.receptiveFamiliarity,
+            timesSeen: item.receptiveTimesSeen,
+            timesCorrect: item.receptiveTimesCorrect,
+            timesIncorrect: item.receptiveTimesIncorrect,
+          }
+        : {
+            familiarity: item.productiveFamiliarity,
+            timesSeen: item.productiveTimesSeen,
+            timesCorrect: item.productiveTimesCorrect,
+            timesIncorrect: item.productiveTimesIncorrect,
+          };
+
+    const { familiarity, nextDueAt } = scheduleTrack(current.familiarity, input.outcome, now);
+    const timesSeen = current.timesSeen + 1;
+    const timesCorrect = current.timesCorrect + (input.outcome === 'correct' ? 1 : 0);
+    const timesIncorrect = current.timesIncorrect + (input.outcome === 'incorrect' ? 1 : 0);
+
+    if (input.direction === 'receptive') {
+      await item.update(
+        {
+          receptiveFamiliarity: familiarity,
+          receptiveNextDueAt: nextDueAt,
+          receptiveLastSeenAt: now,
+          receptiveLastOutcome: input.outcome,
+          receptiveTimesSeen: timesSeen,
+          receptiveTimesCorrect: timesCorrect,
+          receptiveTimesIncorrect: timesIncorrect,
+        },
+        { transaction },
+      );
+    } else {
+      await item.update(
+        {
+          productiveFamiliarity: familiarity,
+          productiveNextDueAt: nextDueAt,
+          productiveLastSeenAt: now,
+          productiveLastOutcome: input.outcome,
+          productiveTimesSeen: timesSeen,
+          productiveTimesCorrect: timesCorrect,
+          productiveTimesIncorrect: timesIncorrect,
+        },
+        { transaction },
+      );
+    }
+
+    return item;
   });
-  if (!item) {
-    throw new NotFoundError('Vocab item not found');
-  }
-
-  const now = new Date();
-  const current =
-    input.direction === 'receptive'
-      ? {
-          familiarity: item.receptiveFamiliarity,
-          timesSeen: item.receptiveTimesSeen,
-          timesCorrect: item.receptiveTimesCorrect,
-          timesIncorrect: item.receptiveTimesIncorrect,
-        }
-      : {
-          familiarity: item.productiveFamiliarity,
-          timesSeen: item.productiveTimesSeen,
-          timesCorrect: item.productiveTimesCorrect,
-          timesIncorrect: item.productiveTimesIncorrect,
-        };
-
-  const { familiarity, nextDueAt } = scheduleTrack(current.familiarity, input.outcome, now);
-  const timesSeen = current.timesSeen + 1;
-  const timesCorrect = current.timesCorrect + (input.outcome === 'correct' ? 1 : 0);
-  const timesIncorrect = current.timesIncorrect + (input.outcome === 'incorrect' ? 1 : 0);
-
-  if (input.direction === 'receptive') {
-    await item.update({
-      receptiveFamiliarity: familiarity,
-      receptiveNextDueAt: nextDueAt,
-      receptiveLastSeenAt: now,
-      receptiveLastOutcome: input.outcome,
-      receptiveTimesSeen: timesSeen,
-      receptiveTimesCorrect: timesCorrect,
-      receptiveTimesIncorrect: timesIncorrect,
-    });
-  } else {
-    await item.update({
-      productiveFamiliarity: familiarity,
-      productiveNextDueAt: nextDueAt,
-      productiveLastSeenAt: now,
-      productiveLastOutcome: input.outcome,
-      productiveTimesSeen: timesSeen,
-      productiveTimesCorrect: timesCorrect,
-      productiveTimesIncorrect: timesIncorrect,
-    });
-  }
-
-  return item;
 }

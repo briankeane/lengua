@@ -611,6 +611,32 @@ describe('gradeReview', () => {
     expect(card.productiveNextDueAt?.getTime()).to.equal(NOW.getTime() + INCORRECT_RETRY_MS);
   });
 
+  it('serializes concurrent grades of the same track without losing updates', async () => {
+    const user = await createUser();
+    const card = await createCard(user.id, 'perro');
+
+    await Promise.all([
+      gradeReview({
+        userId: user.id,
+        vocabItemId: card.id,
+        direction: 'receptive',
+        outcome: 'correct',
+      }),
+      gradeReview({
+        userId: user.id,
+        vocabItemId: card.id,
+        direction: 'receptive',
+        outcome: 'correct',
+      }),
+    ]);
+    await card.reload();
+
+    // Without the row lock, both grades read timesSeen=0 and one write is lost.
+    expect(card.receptiveTimesSeen).to.equal(2);
+    expect(card.receptiveTimesCorrect).to.equal(2);
+    expect(card.receptiveFamiliarity).to.equal(2);
+  });
+
   it('throws NotFoundError for a non-owned card and does not mutate it', async () => {
     const user = await createUser();
     const other = await createUser();

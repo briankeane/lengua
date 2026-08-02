@@ -1,1 +1,1 @@
-export { signup, login, googleSignInWithIdToken } from './auth.lib';
+export { signup, login, googleSignInWithIdToken, appleSignInWithIdentityToken } from './auth.lib';

@@ -126,6 +126,56 @@ paths:
         '401':
           description: Google authentication failed
 
+  /v1/auth/apple:
+    post:
+      tags:
+        - Authentication
+      summary: Sign in with Apple
+      description: >
+        Verify an Apple identity token and return a JWT. The server verifies the
+        identity token directly with Apple (checking the token audience against
+        the configured Apple client id) and creates a new user if one does not
+        exist. Apple only returns the user's name to the client on first
+        authorization, so the client may forward `firstName`/`lastName`; when
+        omitted they fall back to the email localpart. Only available when an
+        Apple client id is configured.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - identityToken
+              properties:
+                identityToken:
+                  type: string
+                  description: Apple identity token (JWT) obtained by the client from Apple
+                firstName:
+                  type: string
+                  description: Optional; forwarded by the client on first authorization
+                  example: Jane
+                lastName:
+                  type: string
+                  description: Optional; forwarded by the client on first authorization
+                  example: Doe
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/UserJwtRepr'
+                  token:
+                    type: string
+        '400':
+          description: Apple sign-in not configured or missing identityToken
+        '401':
+          description: Apple authentication failed
+
 components:
   schemas:
     UserJwtRepr:

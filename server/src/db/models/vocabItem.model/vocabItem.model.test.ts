@@ -14,8 +14,12 @@ describe('VocabItem model', () => {
     });
 
     expect(item.id).to.be.a('string');
-    expect(item.familiarity).to.equal(0);
-    expect(item.timesSeen).to.equal(0);
+    expect(item.receptiveFamiliarity).to.equal(0);
+    expect(item.receptiveTimesSeen).to.equal(0);
+    expect(item.receptiveNextDueAt).to.equal(null);
+    expect(item.productiveFamiliarity).to.equal(0);
+    expect(item.productiveTimesSeen).to.equal(0);
+    expect(item.productiveNextDueAt).to.equal(null);
   });
 
   it('enforces per-user uniqueness on (userId, targetLanguageCode, targetTextNormalized)', async () => {

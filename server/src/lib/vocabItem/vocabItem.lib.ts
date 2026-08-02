@@ -1,5 +1,6 @@
-import { Op, UniqueConstraintError, WhereOptions } from 'sequelize';
-import VocabItem from '../../db/models/vocabItem.model';
+import { literal, Op, UniqueConstraintError, WhereOptions } from 'sequelize';
+import sequelize from '../../db/sequelize';
+import VocabItem, { ReviewOutcome, ReviewTrack } from '../../db/models/vocabItem.model';
 import { NotFoundError, ValidationError } from '../../utils/errors';
 
 export interface SaveVocabItemInput {
@@ -31,20 +32,27 @@ export interface ListVocabItemsResult {
   nextCursor: string | null;
 }
 
-// The public shape returned to clients. Internal columns (userId,
-// targetTextNormalized) are intentionally excluded from the API contract.
-export interface SerializedVocabItem {
-  id: string;
-  targetLanguageCode: string;
-  sourceText: string;
-  targetText: string;
+// The per-track SRS state exposed to clients. Both tracks share this shape.
+export interface SerializedTrack {
   familiarity: number;
+  nextDueAt: Date | null;
   lastSeenAt: Date | null;
   timesSeen: number;
   timesCorrect: number;
   timesIncorrect: number;
   lastOutcome: string | null;
-  nextDueAt: Date | null;
+}
+
+// The public shape returned to clients. Internal columns (userId,
+// targetTextNormalized) are intentionally excluded from the API contract. SRS
+// state is nested under two independent tracks.
+export interface SerializedVocabItem {
+  id: string;
+  targetLanguageCode: string;
+  sourceText: string;
+  targetText: string;
+  receptive: SerializedTrack;
+  productive: SerializedTrack;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -169,20 +177,281 @@ export async function listVocabItems(input: ListVocabItemsInput): Promise<ListVo
   return { items, nextCursor };
 }
 
+function serializeTrack(item: VocabItem, track: ReviewTrack): SerializedTrack {
+  if (track === 'receptive') {
+    return {
+      familiarity: item.receptiveFamiliarity,
+      nextDueAt: item.receptiveNextDueAt,
+      lastSeenAt: item.receptiveLastSeenAt,
+      timesSeen: item.receptiveTimesSeen,
+      timesCorrect: item.receptiveTimesCorrect,
+      timesIncorrect: item.receptiveTimesIncorrect,
+      lastOutcome: item.receptiveLastOutcome,
+    };
+  }
+  return {
+    familiarity: item.productiveFamiliarity,
+    nextDueAt: item.productiveNextDueAt,
+    lastSeenAt: item.productiveLastSeenAt,
+    timesSeen: item.productiveTimesSeen,
+    timesCorrect: item.productiveTimesCorrect,
+    timesIncorrect: item.productiveTimesIncorrect,
+    lastOutcome: item.productiveLastOutcome,
+  };
+}
+
 export function serializeVocabItem(item: VocabItem): SerializedVocabItem {
   return {
     id: item.id,
     targetLanguageCode: item.targetLanguageCode,
     sourceText: item.sourceText,
     targetText: item.targetText,
-    familiarity: item.familiarity,
-    lastSeenAt: item.lastSeenAt,
-    timesSeen: item.timesSeen,
-    timesCorrect: item.timesCorrect,
-    timesIncorrect: item.timesIncorrect,
-    lastOutcome: item.lastOutcome,
-    nextDueAt: item.nextDueAt,
+    receptive: serializeTrack(item, 'receptive'),
+    productive: serializeTrack(item, 'productive'),
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   };
+}
+
+// --- Spaced repetition ------------------------------------------------------
+
+const MINUTE_MS = 60 * 1000;
+const DAY_MS = 24 * 60 * MINUTE_MS;
+
+// A correct answer promotes the card by one Leitner box (capped); an incorrect
+// answer resets it and reschedules it minutes out for a quick retry.
+export const MAX_FAMILIARITY = 8;
+export const INCORRECT_RETRY_MS = 10 * MINUTE_MS;
+
+// Leitner box (== familiarity) -> interval until the next review, on a correct
+// answer. Box 0 is only ever reached by an incorrect answer, which uses the
+// fixed retry delay above rather than this table.
+export const LEITNER_INTERVALS_MS: Record<number, number> = {
+  1: 1 * DAY_MS,
+  2: 3 * DAY_MS,
+  3: 7 * DAY_MS,
+  4: 14 * DAY_MS,
+  5: 30 * DAY_MS,
+  6: 90 * DAY_MS,
+  7: 180 * DAY_MS,
+  8: 365 * DAY_MS,
+};
+
+export interface ScheduleResult {
+  familiarity: number;
+  nextDueAt: Date;
+}
+
+// Pure Leitner scheduler for a single track. Given the track's current
+// familiarity, an outcome, and the current time, returns the new familiarity and
+// due date. Used identically for either track.
+export function scheduleTrack(
+  currentFamiliarity: number,
+  outcome: ReviewOutcome,
+  now: Date,
+): ScheduleResult {
+  if (outcome === 'incorrect') {
+    return { familiarity: 0, nextDueAt: new Date(now.getTime() + INCORRECT_RETRY_MS) };
+  }
+  const familiarity = Math.min(currentFamiliarity + 1, MAX_FAMILIARITY);
+  return { familiarity, nextDueAt: new Date(now.getTime() + LEITNER_INTERVALS_MS[familiarity]) };
+}
+
+export const REVIEW_DIRECTIONS = ['receptive', 'productive', 'any'] as const;
+export type ReviewDirection = (typeof REVIEW_DIRECTIONS)[number];
+
+export interface ReviewQueueInput {
+  userId: string;
+  direction: ReviewDirection;
+  limit: number;
+  targetLanguageCode?: string;
+}
+
+export interface ReviewCard {
+  vocabItemId: string;
+  direction: ReviewTrack;
+  sourceText: string;
+  targetText: string;
+  targetLanguageCode: string;
+  familiarity: number;
+  nextDueAt: Date | null;
+}
+
+export interface ReviewQueueResult {
+  reviewCards: ReviewCard[];
+  dueCounts: { receptive: number; productive: number; total: number };
+}
+
+export interface GradeReviewInput {
+  userId: string;
+  vocabItemId: string;
+  direction: ReviewTrack;
+  outcome: ReviewOutcome;
+}
+
+// A track is due when it has never been scheduled (NULL) or its due date has
+// passed. NULL therefore means "brand new, review immediately".
+function trackDueWhere(track: ReviewTrack, now: Date): WhereOptions {
+  const field = `${track}NextDueAt`;
+  return { [Op.or]: [{ [field]: null }, { [field]: { [Op.lte]: now } }] };
+}
+
+function toReviewCard(item: VocabItem, track: ReviewTrack): ReviewCard {
+  const isReceptive = track === 'receptive';
+  return {
+    vocabItemId: item.id,
+    direction: track,
+    sourceText: item.sourceText,
+    targetText: item.targetText,
+    targetLanguageCode: item.targetLanguageCode,
+    familiarity: isReceptive ? item.receptiveFamiliarity : item.productiveFamiliarity,
+    nextDueAt: isReceptive ? item.receptiveNextDueAt : item.productiveNextDueAt,
+  };
+}
+
+// Most-overdue-first: NULLs (brand new) first, then by due date ascending, then
+// id ascending. When one card is due in both tracks (direction=any), receptive
+// is emitted before productive so the order is deterministic.
+function compareReviewCards(a: ReviewCard, b: ReviewCard): number {
+  const at = a.nextDueAt ? a.nextDueAt.getTime() : null;
+  const bt = b.nextDueAt ? b.nextDueAt.getTime() : null;
+  if (at === null && bt !== null) return -1;
+  if (at !== null && bt === null) return 1;
+  if (at !== null && bt !== null && at !== bt) return at - bt;
+  if (a.vocabItemId !== b.vocabItemId) return a.vocabItemId < b.vocabItemId ? -1 : 1;
+  if (a.direction === b.direction) return 0;
+  return a.direction === 'receptive' ? -1 : 1;
+}
+
+async function fetchTrackCards(
+  track: ReviewTrack,
+  base: WhereOptions,
+  now: Date,
+  limit: number,
+): Promise<ReviewCard[]> {
+  const dueField = `${track}NextDueAt`;
+  const rows = await VocabItem.findAll({
+    where: { [Op.and]: [base, trackDueWhere(track, now)] },
+    order: [
+      // Emulate NULLS FIRST portably: `IS NOT NULL` sorts false (0) before true.
+      [literal(`"${dueField}" IS NOT NULL`), 'ASC'],
+      [dueField, 'ASC'],
+      ['id', 'ASC'],
+    ],
+    limit,
+  });
+  return rows.map((row) => toReviewCard(row, track));
+}
+
+// Returns the due (card, track) entries plus per-track due totals. dueCounts are
+// computed independently of `limit` and `direction`; total is the number of
+// distinct cards due in at least one track. reviewCards is ordered most-overdue
+// first and capped at `limit`.
+export async function getReviewQueue(input: ReviewQueueInput): Promise<ReviewQueueResult> {
+  const now = new Date();
+  const base: WhereOptions = { userId: input.userId };
+  if (input.targetLanguageCode) {
+    (base as Record<string, unknown>).targetLanguageCode = input.targetLanguageCode
+      .trim()
+      .toLowerCase();
+  }
+
+  const [receptive, productive, total] = await Promise.all([
+    VocabItem.count({ where: { [Op.and]: [base, trackDueWhere('receptive', now)] } }),
+    VocabItem.count({ where: { [Op.and]: [base, trackDueWhere('productive', now)] } }),
+    VocabItem.count({
+      where: {
+        [Op.and]: [
+          base,
+          { [Op.or]: [trackDueWhere('receptive', now), trackDueWhere('productive', now)] },
+        ],
+      },
+    }),
+  ]);
+
+  const tracks: ReviewTrack[] =
+    input.direction === 'any' ? ['receptive', 'productive'] : [input.direction];
+
+  // Each track query is already limited and ordered; the global top-`limit`
+  // entries are a subset of each track's top-`limit`, so merging then slicing is
+  // correct.
+  const perTrack = await Promise.all(
+    tracks.map((track) => fetchTrackCards(track, base, now, input.limit)),
+  );
+  const reviewCards = perTrack.flat().sort(compareReviewCards).slice(0, input.limit);
+
+  return { reviewCards, dueCounts: { receptive, productive, total } };
+}
+
+// Grades a single track of one owned card. Missing or non-owned ids surface as
+// NotFoundError (matching deleteVocabItem). Only the named track's stats and
+// schedule are touched; the other track is left untouched.
+//
+// The read-modify-write runs inside a transaction with a row lock
+// (SELECT ... FOR UPDATE) so concurrent grades of the same card serialize: each
+// reads the previous grade's committed state instead of racing on a stale read
+// and silently dropping a review. Familiarity is a Leitner box computed from the
+// prior value, so a plain atomic increment can't replace the lock.
+export async function gradeReview(input: GradeReviewInput): Promise<VocabItem> {
+  return sequelize.transaction(async (transaction) => {
+    const item = await VocabItem.findOne({
+      where: { id: input.vocabItemId, userId: input.userId },
+      lock: transaction.LOCK.UPDATE,
+      transaction,
+    });
+    if (!item) {
+      throw new NotFoundError('Vocab item not found');
+    }
+
+    const now = new Date();
+    const current =
+      input.direction === 'receptive'
+        ? {
+            familiarity: item.receptiveFamiliarity,
+            timesSeen: item.receptiveTimesSeen,
+            timesCorrect: item.receptiveTimesCorrect,
+            timesIncorrect: item.receptiveTimesIncorrect,
+          }
+        : {
+            familiarity: item.productiveFamiliarity,
+            timesSeen: item.productiveTimesSeen,
+            timesCorrect: item.productiveTimesCorrect,
+            timesIncorrect: item.productiveTimesIncorrect,
+          };
+
+    const { familiarity, nextDueAt } = scheduleTrack(current.familiarity, input.outcome, now);
+    const timesSeen = current.timesSeen + 1;
+    const timesCorrect = current.timesCorrect + (input.outcome === 'correct' ? 1 : 0);
+    const timesIncorrect = current.timesIncorrect + (input.outcome === 'incorrect' ? 1 : 0);
+
+    if (input.direction === 'receptive') {
+      await item.update(
+        {
+          receptiveFamiliarity: familiarity,
+          receptiveNextDueAt: nextDueAt,
+          receptiveLastSeenAt: now,
+          receptiveLastOutcome: input.outcome,
+          receptiveTimesSeen: timesSeen,
+          receptiveTimesCorrect: timesCorrect,
+          receptiveTimesIncorrect: timesIncorrect,
+        },
+        { transaction },
+      );
+    } else {
+      await item.update(
+        {
+          productiveFamiliarity: familiarity,
+          productiveNextDueAt: nextDueAt,
+          productiveLastSeenAt: now,
+          productiveLastOutcome: input.outcome,
+          productiveTimesSeen: timesSeen,
+          productiveTimesCorrect: timesCorrect,
+          productiveTimesIncorrect: timesIncorrect,
+        },
+        { transaction },
+      );
+    }
+
+    return item;
+  });
 }

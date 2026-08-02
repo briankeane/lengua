@@ -7,6 +7,15 @@ import {
 } from 'sequelize';
 import sequelize from '../../sequelize';
 
+// Receptive (see target word -> recall meaning) and productive (see meaning ->
+// produce target word) are separate recall skills with separate retention
+// curves, so each is scheduled as its own independent SRS track.
+export const REVIEW_TRACKS = ['receptive', 'productive'] as const;
+export type ReviewTrack = (typeof REVIEW_TRACKS)[number];
+
+export const REVIEW_OUTCOMES = ['correct', 'incorrect'] as const;
+export type ReviewOutcome = (typeof REVIEW_OUTCOMES)[number];
+
 class VocabItem extends Model<InferAttributes<VocabItem>, InferCreationAttributes<VocabItem>> {
   declare id: CreationOptional<string>;
   declare userId: string;
@@ -14,16 +23,33 @@ class VocabItem extends Model<InferAttributes<VocabItem>, InferCreationAttribute
   declare sourceText: string;
   declare targetText: string;
   declare targetTextNormalized: string;
-  declare familiarity: CreationOptional<number>;
-  declare lastSeenAt: CreationOptional<Date | null>;
-  declare timesSeen: CreationOptional<number>;
-  declare timesCorrect: CreationOptional<number>;
-  declare timesIncorrect: CreationOptional<number>;
-  declare lastOutcome: CreationOptional<string | null>;
-  declare nextDueAt: CreationOptional<Date | null>;
+
+  declare receptiveFamiliarity: CreationOptional<number>;
+  declare receptiveNextDueAt: CreationOptional<Date | null>;
+  declare receptiveLastSeenAt: CreationOptional<Date | null>;
+  declare receptiveTimesSeen: CreationOptional<number>;
+  declare receptiveTimesCorrect: CreationOptional<number>;
+  declare receptiveTimesIncorrect: CreationOptional<number>;
+  declare receptiveLastOutcome: CreationOptional<string | null>;
+
+  declare productiveFamiliarity: CreationOptional<number>;
+  declare productiveNextDueAt: CreationOptional<Date | null>;
+  declare productiveLastSeenAt: CreationOptional<Date | null>;
+  declare productiveTimesSeen: CreationOptional<number>;
+  declare productiveTimesCorrect: CreationOptional<number>;
+  declare productiveTimesIncorrect: CreationOptional<number>;
+  declare productiveLastOutcome: CreationOptional<string | null>;
+
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
 }
+
+// Factories return a fresh definition object per attribute. Sequelize mutates
+// each attribute definition during init (e.g. to record its `field`), so a
+// shared object reference would collapse multiple attributes onto one column.
+const intDefaultZero = () => ({ type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 });
+const nullableDate = () => ({ type: DataTypes.DATE, allowNull: true });
+const nullableString = () => ({ type: DataTypes.STRING, allowNull: true });
 
 VocabItem.init(
   {
@@ -45,13 +71,23 @@ VocabItem.init(
     sourceText: { type: DataTypes.TEXT, allowNull: false },
     targetText: { type: DataTypes.TEXT, allowNull: false },
     targetTextNormalized: { type: DataTypes.TEXT, allowNull: false },
-    familiarity: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-    lastSeenAt: { type: DataTypes.DATE, allowNull: true },
-    timesSeen: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-    timesCorrect: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-    timesIncorrect: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-    lastOutcome: { type: DataTypes.STRING, allowNull: true },
-    nextDueAt: { type: DataTypes.DATE, allowNull: true },
+
+    receptiveFamiliarity: intDefaultZero(),
+    receptiveNextDueAt: nullableDate(),
+    receptiveLastSeenAt: nullableDate(),
+    receptiveTimesSeen: intDefaultZero(),
+    receptiveTimesCorrect: intDefaultZero(),
+    receptiveTimesIncorrect: intDefaultZero(),
+    receptiveLastOutcome: nullableString(),
+
+    productiveFamiliarity: intDefaultZero(),
+    productiveNextDueAt: nullableDate(),
+    productiveLastSeenAt: nullableDate(),
+    productiveTimesSeen: intDefaultZero(),
+    productiveTimesCorrect: intDefaultZero(),
+    productiveTimesIncorrect: intDefaultZero(),
+    productiveLastOutcome: nullableString(),
+
     createdAt: DataTypes.DATE,
     updatedAt: DataTypes.DATE,
   },
@@ -60,8 +96,9 @@ VocabItem.init(
     modelName: 'vocabItem',
     indexes: [
       { unique: true, fields: ['userId', 'targetLanguageCode', 'targetTextNormalized'] },
-      { fields: ['userId', 'familiarity'] },
-      { fields: ['userId', 'nextDueAt'] },
+      // One per-track due-date index backs GET /v1/vocab-items/review ordering.
+      { fields: ['userId', 'receptiveNextDueAt'] },
+      { fields: ['userId', 'productiveNextDueAt'] },
       // Back GET /v1/vocab-items keyset pagination (ORDER BY createdAt DESC, id DESC).
       { name: 'vocab_items_user_created_id', fields: ['userId', 'createdAt', 'id'] },
       {

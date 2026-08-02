@@ -59,7 +59,8 @@ paths:
         Saves a locally-translated word or phrase to the authenticated user's vocab
         list for later review. Idempotent per user: saving the same target text in the
         same language returns the existing item instead of creating a duplicate. The
-        owning user is taken from the token; a `userId` in the body is ignored.
+        owning user is taken from the token; a `userId` in the body is ignored. New
+        items start with both SRS tracks at their defaults.
       security:
         - bearerAuth: []
       requestBody:
@@ -105,6 +106,68 @@ paths:
           description: Missing or empty required field
         '401':
           description: Authentication required
+  /v1/vocab-items/review:
+    get:
+      tags:
+        - VocabItems
+      summary: Get the due review queue
+      description: >
+        Returns the authenticated user's due review entries plus per-track due
+        totals. Each vocab item carries two independent SRS tracks: `receptive`
+        (see the target word, recall its meaning) and `productive` (see the
+        meaning, produce the target word). A track is due when its `nextDueAt` is
+        null (brand new) or in the past.
+
+
+        `reviewCards` is a list of (card, track) entries ordered most-overdue
+        first: null due dates first, then ascending due date, then `id`
+        ascending, then receptive before productive. When `direction=any` and a
+        card is due in both tracks, it yields two entries. `limit` caps the number
+        of *entries* (not distinct cards), so a page may cover fewer than `limit`
+        distinct vocab items.
+
+
+        `dueCounts` is always global — it reports both tracks' full user totals
+        regardless of the `direction` filter (which narrows `reviewCards` only).
+        `total` is the number of distinct vocab items due in at least one track.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: direction
+          required: false
+          schema:
+            type: string
+            enum: [receptive, productive, any]
+            default: any
+          description: Which track(s) to include in `reviewCards`. Does not affect `dueCounts`.
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Maximum review entries to return. Must be an integer between 1 and 100.
+        - in: query
+          name: targetLanguageCode
+          required: false
+          schema:
+            type: string
+            example: es
+          description: Optional exact filter, case-insensitive (canonicalized to lowercase).
+      responses:
+        '200':
+          description: The due review queue and per-track due counts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewQueue'
+        '400':
+          description: Invalid direction or limit, or an unknown query parameter
+        '401':
+          description: Authentication required
   /v1/vocab-items/{vocabItemId}:
     delete:
       tags:
@@ -134,64 +197,99 @@ paths:
           description: Authentication required
         '404':
           description: No vocab item with that id is owned by the authenticated user
+  /v1/vocab-items/{vocabItemId}/review:
+    post:
+      tags:
+        - VocabItems
+      summary: Grade one SRS track of a vocab item
+      description: >
+        Records a review outcome for a single track of one owned vocab item and
+        reschedules that track using a Leitner algorithm. A correct answer
+        promotes the track one Leitner box (capped at box 8) and schedules the
+        next review at the new box's interval (1d, 3d, 7d, 14d, 30d, 90d, 180d,
+        365d). An incorrect answer resets the track to box 0 and reschedules it 10
+        minutes out. Only the named track's stats and schedule change; the other
+        track is untouched. Missing or non-owned ids return 404.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: vocabItemId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The id of the vocab item to grade.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - direction
+                - outcome
+              properties:
+                direction:
+                  type: string
+                  enum: [receptive, productive]
+                  description: Which track to grade.
+                outcome:
+                  type: string
+                  enum: [correct, incorrect]
+                  description: The review result for the named track.
+      responses:
+        '200':
+          description: The full updated vocab item, with the graded track rescheduled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VocabItem'
+        '400':
+          description: Missing/invalid direction or outcome, or a malformed vocabItemId
+        '401':
+          description: Authentication required
+        '404':
+          description: No vocab item with that id is owned by the authenticated user
 
 components:
   schemas:
+    VocabItemTrack:
+      type: object
+      description: Independent SRS state for a single recall track.
+      properties:
+        familiarity:
+          type: integer
+          description: Current Leitner box (0-8).
+          example: 0
+        nextDueAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When this track is next due. Null means never scheduled (due now).
+        lastSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+        timesSeen:
+          type: integer
+          example: 0
+        timesCorrect:
+          type: integer
+          example: 0
+        timesIncorrect:
+          type: integer
+          example: 0
+        lastOutcome:
+          type: string
+          nullable: true
+          enum: [correct, incorrect]
     VocabItem:
       type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        userId:
-          type: string
-          format: uuid
-        targetLanguageCode:
-          type: string
-          example: es
-        sourceText:
-          type: string
-          example: the dog
-        targetText:
-          type: string
-          example: el perro
-        targetTextNormalized:
-          type: string
-          example: el perro
-        familiarity:
-          type: integer
-          example: 0
-        lastSeenAt:
-          type: string
-          format: date-time
-          nullable: true
-        timesSeen:
-          type: integer
-          example: 0
-        timesCorrect:
-          type: integer
-          example: 0
-        timesIncorrect:
-          type: integer
-          example: 0
-        lastOutcome:
-          type: string
-          nullable: true
-        nextDueAt:
-          type: string
-          format: date-time
-          nullable: true
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-    VocabItemListItem:
-      type: object
       description: >
-        The public vocab item shape returned by list/read endpoints. Excludes
-        internal fields (`userId`, `targetTextNormalized`).
+        The public vocab item shape returned by create/list/grade endpoints.
+        Excludes internal fields (`userId`, `targetTextNormalized`). SRS state is
+        nested under two independent tracks.
       properties:
         id:
           type: string
@@ -205,29 +303,10 @@ components:
         targetText:
           type: string
           example: el perro
-        familiarity:
-          type: integer
-          example: 0
-        lastSeenAt:
-          type: string
-          format: date-time
-          nullable: true
-        timesSeen:
-          type: integer
-          example: 0
-        timesCorrect:
-          type: integer
-          example: 0
-        timesIncorrect:
-          type: integer
-          example: 0
-        lastOutcome:
-          type: string
-          nullable: true
-        nextDueAt:
-          type: string
-          format: date-time
-          nullable: true
+        receptive:
+          $ref: '#/components/schemas/VocabItemTrack'
+        productive:
+          $ref: '#/components/schemas/VocabItemTrack'
         createdAt:
           type: string
           format: date-time
@@ -240,7 +319,7 @@ components:
         vocabItems:
           type: array
           items:
-            $ref: '#/components/schemas/VocabItemListItem'
+            $ref: '#/components/schemas/VocabItem'
         pagination:
           type: object
           properties:
@@ -251,3 +330,52 @@ components:
               type: string
               nullable: true
               description: Cursor for the next page, or null when there are no more items.
+    ReviewCard:
+      type: object
+      description: A single due (card, track) review entry.
+      properties:
+        vocabItemId:
+          type: string
+          format: uuid
+        direction:
+          type: string
+          enum: [receptive, productive]
+        sourceText:
+          type: string
+          example: the dog
+        targetText:
+          type: string
+          example: el perro
+        targetLanguageCode:
+          type: string
+          example: es
+        familiarity:
+          type: integer
+          description: The named track's current Leitner box (0-8).
+          example: 0
+        nextDueAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: The named track's due date. Null means never scheduled (due now).
+    ReviewQueue:
+      type: object
+      properties:
+        reviewCards:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReviewCard'
+        dueCounts:
+          type: object
+          description: Global per-track due totals, independent of the direction filter.
+          properties:
+            receptive:
+              type: integer
+              example: 12
+            productive:
+              type: integer
+              example: 3
+            total:
+              type: integer
+              description: Distinct vocab items due in at least one track.
+              example: 15

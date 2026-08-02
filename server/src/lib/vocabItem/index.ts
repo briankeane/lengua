@@ -3,6 +3,13 @@ export {
   listVocabItems,
   deleteVocabItem,
   serializeVocabItem,
+  scheduleTrack,
+  getReviewQueue,
+  gradeReview,
+  REVIEW_DIRECTIONS,
+  LEITNER_INTERVALS_MS,
+  MAX_FAMILIARITY,
+  INCORRECT_RETRY_MS,
 } from './vocabItem.lib';
 export type {
   SaveVocabItemInput,
@@ -11,4 +18,11 @@ export type {
   ListVocabItemsInput,
   ListVocabItemsResult,
   SerializedVocabItem,
+  SerializedTrack,
+  ScheduleResult,
+  ReviewDirection,
+  ReviewQueueInput,
+  ReviewCard,
+  ReviewQueueResult,
+  GradeReviewInput,
 } from './vocabItem.lib';

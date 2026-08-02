@@ -5,10 +5,16 @@ import {
   listVocabItems,
   deleteVocabItem,
   serializeVocabItem,
+  getReviewQueue,
+  gradeReview,
+  REVIEW_DIRECTIONS,
+  ReviewDirection,
 } from '../../lib/vocabItem';
+import { ReviewTrack, ReviewOutcome } from '../../db/models/vocabItem.model';
 import { ValidationError } from '../../utils/errors';
 
 export const DEFAULT_LIST_LIMIT = 50;
+export const DEFAULT_REVIEW_LIMIT = 20;
 export const MAX_LIST_LIMIT = 100;
 
 export async function handleCreateVocabItem(req: Request, res: Response, next: NextFunction) {
@@ -21,7 +27,7 @@ export async function handleCreateVocabItem(req: Request, res: Response, next: N
       sourceText,
       targetText,
     });
-    res.status(created ? 201 : 200).json(item);
+    res.status(created ? 201 : 200).json(serializeVocabItem(item));
   } catch (err) {
     next(err);
   }
@@ -30,7 +36,7 @@ export async function handleCreateVocabItem(req: Request, res: Response, next: N
 export async function handleListVocabItems(req: Request, res: Response, next: NextFunction) {
   try {
     const authReq = req as AuthenticatedRequest;
-    const limit = parseLimit(req.query.limit);
+    const limit = parseLimit(req.query.limit, DEFAULT_LIST_LIMIT);
 
     const { items, nextCursor } = await listVocabItems({
       userId: authReq.auth.id,
@@ -61,6 +67,40 @@ export async function handleDeleteVocabItem(req: Request, res: Response, next: N
   }
 }
 
+export async function handleReviewQueue(req: Request, res: Response, next: NextFunction) {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const limit = parseLimit(req.query.limit, DEFAULT_REVIEW_LIMIT);
+    const direction = parseDirection(req.query.direction);
+
+    const result = await getReviewQueue({
+      userId: authReq.auth.id,
+      direction,
+      limit,
+      targetLanguageCode: singleStringParam(req.query.targetLanguageCode, 'targetLanguageCode'),
+    });
+
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function handleGradeReview(req: Request, res: Response, next: NextFunction) {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const item = await gradeReview({
+      userId: authReq.auth.id,
+      vocabItemId: req.params.vocabItemId as string,
+      direction: req.body.direction as ReviewTrack,
+      outcome: req.body.outcome as ReviewOutcome,
+    });
+    res.status(200).json(serializeVocabItem(item));
+  } catch (err) {
+    next(err);
+  }
+}
+
 // A repeated query param (e.g. ?cursor=a&cursor=b) parses to an array. Reject it
 // rather than silently coercing to undefined, which would quietly restart
 // pagination or drop the language filter instead of surfacing the bad request.
@@ -74,9 +114,21 @@ function singleStringParam(value: unknown, name: string): string | undefined {
   return value;
 }
 
-function parseLimit(raw: unknown): number {
+function parseDirection(raw: unknown): ReviewDirection {
   if (raw === undefined) {
-    return DEFAULT_LIST_LIMIT;
+    return 'any';
+  }
+  if (typeof raw !== 'string' || !REVIEW_DIRECTIONS.includes(raw as ReviewDirection)) {
+    throw new ValidationError(
+      `Invalid Value: direction must be one of ${REVIEW_DIRECTIONS.join(', ')}`,
+    );
+  }
+  return raw as ReviewDirection;
+}
+
+function parseLimit(raw: unknown, defaultLimit: number): number {
+  if (raw === undefined) {
+    return defaultLimit;
   }
   const value = Number(raw);
   if (!Number.isInteger(value) || value < 1 || value > MAX_LIST_LIMIT) {

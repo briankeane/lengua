@@ -8,6 +8,10 @@ import {
   listVocabItems,
   serializeVocabItem,
   deleteVocabItem,
+  scheduleTrack,
+  getReviewQueue,
+  gradeReview,
+  INCORRECT_RETRY_MS,
 } from './vocabItem.lib';
 import { NotFoundError, ValidationError } from '../../utils/errors';
 import { createUser, createVocabItem } from '../../test/testDataGenerator';
@@ -375,7 +379,7 @@ describe('serializeVocabItem', () => {
     expect(serialized).to.not.have.property('targetTextNormalized');
   });
 
-  it('includes stats and nullable review fields', async () => {
+  it('nests SRS state under independent receptive and productive tracks', async () => {
     const user = await createUser();
     const [item] = await seedItems(user.id, 1);
 
@@ -386,18 +390,245 @@ describe('serializeVocabItem', () => {
       'targetLanguageCode',
       'sourceText',
       'targetText',
-      'familiarity',
-      'lastSeenAt',
-      'timesSeen',
-      'timesCorrect',
-      'timesIncorrect',
-      'lastOutcome',
-      'nextDueAt',
+      'receptive',
+      'productive',
       'createdAt',
       'updatedAt',
     ]);
-    expect(serialized.familiarity).to.equal(0);
-    expect(serialized.lastSeenAt).to.equal(null);
-    expect(serialized.nextDueAt).to.equal(null);
+    expect(serialized).to.not.have.property('familiarity');
+    for (const track of [serialized.receptive, serialized.productive]) {
+      expect(track).to.include.keys([
+        'familiarity',
+        'nextDueAt',
+        'lastSeenAt',
+        'timesSeen',
+        'timesCorrect',
+        'timesIncorrect',
+        'lastOutcome',
+      ]);
+      expect(track.familiarity).to.equal(0);
+      expect(track.nextDueAt).to.equal(null);
+      expect(track.lastSeenAt).to.equal(null);
+      expect(track.lastOutcome).to.equal(null);
+      expect(track.timesSeen).to.equal(0);
+    }
+  });
+});
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const NOW = new Date('2026-01-26T10:00:00.000Z');
+
+describe('scheduleTrack', () => {
+  it('promotes one Leitner box and schedules the new box interval on correct', () => {
+    expect(scheduleTrack(0, 'correct', NOW)).to.deep.equal({
+      familiarity: 1,
+      nextDueAt: new Date(NOW.getTime() + 1 * DAY_MS),
+    });
+    expect(scheduleTrack(2, 'correct', NOW)).to.deep.equal({
+      familiarity: 3,
+      nextDueAt: new Date(NOW.getTime() + 7 * DAY_MS),
+    });
+  });
+
+  it('resets familiarity to 0 and reschedules 10 minutes out on incorrect', () => {
+    expect(scheduleTrack(5, 'incorrect', NOW)).to.deep.equal({
+      familiarity: 0,
+      nextDueAt: new Date(NOW.getTime() + INCORRECT_RETRY_MS),
+    });
+  });
+
+  it('caps familiarity at 8 and uses the 365-day interval', () => {
+    expect(scheduleTrack(8, 'correct', NOW)).to.deep.equal({
+      familiarity: 8,
+      nextDueAt: new Date(NOW.getTime() + 365 * DAY_MS),
+    });
+  });
+});
+
+// Creates a card and sets each track's next-due date. `null` means the track has
+// never been scheduled (due immediately); a Date sets an explicit due time.
+async function createCard(
+  userId: string,
+  targetText: string,
+  due: { receptive?: Date | null; productive?: Date | null } = {},
+) {
+  const item = await createVocabItem({ userId, targetText });
+  await item.update({
+    receptiveNextDueAt: due.receptive ?? null,
+    productiveNextDueAt: due.productive ?? null,
+  });
+  return item;
+}
+
+describe('getReviewQueue', () => {
+  beforeEach(() => tk.freeze(NOW));
+  afterEach(() => tk.reset());
+
+  const future = new Date(NOW.getTime() + DAY_MS);
+
+  it('emits a card only for the tracks that are due', async () => {
+    const user = await createUser();
+    // receptive due (null), productive not due (future).
+    await createCard(user.id, 'perro', { receptive: null, productive: future });
+
+    const { reviewCards, dueCounts } = await getReviewQueue({
+      userId: user.id,
+      direction: 'any',
+      limit: 20,
+    });
+
+    expect(reviewCards).to.have.length(1);
+    expect(reviewCards[0].direction).to.equal('receptive');
+    expect(dueCounts).to.deep.equal({ receptive: 1, productive: 0, total: 1 });
+  });
+
+  it('emits two entries for a card due in both tracks when direction=any', async () => {
+    const user = await createUser();
+    const card = await createCard(user.id, 'perro', { receptive: null, productive: null });
+
+    const { reviewCards, dueCounts } = await getReviewQueue({
+      userId: user.id,
+      direction: 'any',
+      limit: 20,
+    });
+
+    expect(reviewCards).to.have.length(2);
+    expect(reviewCards.map((c) => c.direction)).to.have.members(['receptive', 'productive']);
+    expect(reviewCards.every((c) => c.vocabItemId === card.id)).to.equal(true);
+    expect(dueCounts).to.deep.equal({ receptive: 1, productive: 1, total: 1 });
+  });
+
+  it('filters by direction and returns only that track', async () => {
+    const user = await createUser();
+    await createCard(user.id, 'perro', { receptive: null, productive: null });
+
+    const { reviewCards } = await getReviewQueue({
+      userId: user.id,
+      direction: 'productive',
+      limit: 20,
+    });
+
+    expect(reviewCards).to.have.length(1);
+    expect(reviewCards[0].direction).to.equal('productive');
+  });
+
+  it('orders most-overdue first (NULLs first, then due date ascending)', async () => {
+    const user = await createUser();
+    const older = new Date(NOW.getTime() - 2 * DAY_MS);
+    const newer = new Date(NOW.getTime() - 1 * DAY_MS);
+    await createCard(user.id, 'a', { receptive: newer });
+    await createCard(user.id, 'b', { receptive: null });
+    await createCard(user.id, 'c', { receptive: older });
+
+    const { reviewCards } = await getReviewQueue({
+      userId: user.id,
+      direction: 'receptive',
+      limit: 20,
+    });
+
+    expect(reviewCards.map((c) => c.targetText)).to.deep.equal(['b', 'c', 'a']);
+  });
+
+  it('caps reviewCards at limit but reports full dueCounts', async () => {
+    const user = await createUser();
+    for (let i = 0; i < 3; i += 1) {
+      await createCard(user.id, `word-${i}`, { receptive: null, productive: future });
+    }
+
+    const { reviewCards, dueCounts } = await getReviewQueue({
+      userId: user.id,
+      direction: 'receptive',
+      limit: 2,
+    });
+
+    expect(reviewCards).to.have.length(2);
+    expect(dueCounts.receptive).to.equal(3);
+  });
+
+  it('scopes the queue and counts to the given user', async () => {
+    const user = await createUser();
+    const other = await createUser();
+    await createCard(user.id, 'perro');
+    await createCard(other.id, 'gato');
+
+    const { reviewCards, dueCounts } = await getReviewQueue({
+      userId: user.id,
+      direction: 'any',
+      limit: 20,
+    });
+
+    expect(reviewCards.every((c) => c.vocabItemId !== undefined)).to.equal(true);
+    expect(dueCounts.total).to.equal(1);
+  });
+});
+
+describe('gradeReview', () => {
+  beforeEach(() => tk.freeze(NOW));
+  afterEach(() => tk.reset());
+
+  it('mutates only the named track, reschedules it, and leaves the other untouched', async () => {
+    const user = await createUser();
+    const card = await createCard(user.id, 'perro');
+
+    await gradeReview({
+      userId: user.id,
+      vocabItemId: card.id,
+      direction: 'receptive',
+      outcome: 'correct',
+    });
+    await card.reload();
+
+    expect(card.receptiveFamiliarity).to.equal(1);
+    expect(card.receptiveTimesSeen).to.equal(1);
+    expect(card.receptiveTimesCorrect).to.equal(1);
+    expect(card.receptiveTimesIncorrect).to.equal(0);
+    expect(card.receptiveLastOutcome).to.equal('correct');
+    expect(card.receptiveLastSeenAt?.getTime()).to.equal(NOW.getTime());
+    expect(card.receptiveNextDueAt?.getTime()).to.equal(NOW.getTime() + DAY_MS);
+
+    // Productive track untouched.
+    expect(card.productiveFamiliarity).to.equal(0);
+    expect(card.productiveTimesSeen).to.equal(0);
+    expect(card.productiveLastOutcome).to.equal(null);
+    expect(card.productiveNextDueAt).to.equal(null);
+  });
+
+  it('increments timesIncorrect and resets on an incorrect grade', async () => {
+    const user = await createUser();
+    const card = await createCard(user.id, 'perro');
+    await card.update({ productiveFamiliarity: 4 });
+
+    await gradeReview({
+      userId: user.id,
+      vocabItemId: card.id,
+      direction: 'productive',
+      outcome: 'incorrect',
+    });
+    await card.reload();
+
+    expect(card.productiveFamiliarity).to.equal(0);
+    expect(card.productiveTimesIncorrect).to.equal(1);
+    expect(card.productiveNextDueAt?.getTime()).to.equal(NOW.getTime() + INCORRECT_RETRY_MS);
+  });
+
+  it('throws NotFoundError for a non-owned card and does not mutate it', async () => {
+    const user = await createUser();
+    const other = await createUser();
+    const card = await createCard(other.id, 'perro');
+
+    let thrown: unknown;
+    try {
+      await gradeReview({
+        userId: user.id,
+        vocabItemId: card.id,
+        direction: 'receptive',
+        outcome: 'correct',
+      });
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).to.be.instanceOf(NotFoundError);
+    await card.reload();
+    expect(card.receptiveTimesSeen).to.equal(0);
   });
 });

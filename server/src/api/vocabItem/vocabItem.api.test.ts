@@ -23,10 +23,17 @@ describe('VocabItem API', function () {
         .expect(201);
 
       assert.isString(res.body.id);
-      assert.equal(res.body.userId, user.id);
       assert.equal(res.body.sourceText, 'the dog');
       assert.equal(res.body.targetText, 'el perro');
-      assert.equal(res.body.targetTextNormalized, 'el perro');
+      assert.notProperty(res.body, 'userId');
+      assert.notProperty(res.body, 'targetTextNormalized');
+      assert.equal(res.body.receptive.familiarity, 0);
+      assert.equal(res.body.receptive.nextDueAt, null);
+      assert.equal(res.body.productive.familiarity, 0);
+      assert.notProperty(res.body, 'familiarity');
+
+      const item = await VocabItem.findByPk(res.body.id);
+      assert.equal(item?.userId, user.id);
     });
 
     it('returns 200 and the existing item on a duplicate save', async function () {
@@ -57,7 +64,6 @@ describe('VocabItem API', function () {
         .send({ ...VALID_BODY, userId: '00000000-0000-0000-0000-000000000000' })
         .expect(201);
 
-      assert.equal(res.body.userId, user.id);
       const item = await VocabItem.findByPk(res.body.id);
       assert.equal(item?.userId, user.id);
     });
@@ -169,7 +175,10 @@ describe('VocabItem API', function () {
 
       const item = res.body.vocabItems[0];
       assert.property(item, 'targetText');
-      assert.property(item, 'familiarity');
+      assert.property(item, 'receptive');
+      assert.property(item, 'productive');
+      assert.equal(item.receptive.timesSeen, 0);
+      assert.notProperty(item, 'familiarity');
       assert.notProperty(item, 'userId');
       assert.notProperty(item, 'targetTextNormalized');
     });
@@ -331,6 +340,230 @@ describe('VocabItem API', function () {
       const item = await createVocabItem({ userId: user.id });
 
       await request(app).delete(`/v1/vocab-items/${item.id}`).expect(401);
+    });
+  });
+
+  describe('GET /v1/vocab-items/review', function () {
+    afterEach(() => tk.reset());
+
+    it('returns 401 without authentication', async function () {
+      await request(app).get('/v1/vocab-items/review').expect(401);
+    });
+
+    it('returns due cards (both tracks) with per-track dueCounts', async function () {
+      const { user, token } = await createUserWithToken();
+      // A brand-new card (both nextDueAt null) is due in both tracks.
+      await createVocabItem({ userId: user.id, targetText: 'perro' });
+
+      const res = await request(app)
+        .get('/v1/vocab-items/review')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      assert.deepEqual(res.body.dueCounts, { receptive: 1, productive: 1, total: 1 });
+      assert.equal(res.body.reviewCards.length, 2);
+      assert.deepEqual(res.body.reviewCards.map((c: { direction: string }) => c.direction).sort(), [
+        'productive',
+        'receptive',
+      ]);
+      const card = res.body.reviewCards[0];
+      assert.containsAllKeys(card, [
+        'vocabItemId',
+        'direction',
+        'sourceText',
+        'targetText',
+        'targetLanguageCode',
+        'familiarity',
+        'nextDueAt',
+      ]);
+    });
+
+    it('filters reviewCards by direction but keeps dueCounts global', async function () {
+      const { user, token } = await createUserWithToken();
+      await createVocabItem({ userId: user.id, targetText: 'perro' });
+
+      const res = await request(app)
+        .get('/v1/vocab-items/review?direction=receptive')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      assert.equal(res.body.reviewCards.length, 1);
+      assert.equal(res.body.reviewCards[0].direction, 'receptive');
+      // dueCounts stay global regardless of the direction filter.
+      assert.deepEqual(res.body.dueCounts, { receptive: 1, productive: 1, total: 1 });
+    });
+
+    it('orders most-overdue first (NULLs first, then due date ascending)', async function () {
+      const { user, token } = await createUserWithToken();
+      const now = Date.now();
+      const future = new Date(now + 86400000);
+      const a = await createVocabItem({ userId: user.id, targetText: 'a' });
+      await a.update({ receptiveNextDueAt: new Date(now - 1000), productiveNextDueAt: future });
+      const b = await createVocabItem({ userId: user.id, targetText: 'b' });
+      await b.update({ receptiveNextDueAt: null, productiveNextDueAt: future });
+      const c = await createVocabItem({ userId: user.id, targetText: 'c' });
+      await c.update({ receptiveNextDueAt: new Date(now - 2000), productiveNextDueAt: future });
+
+      const res = await request(app)
+        .get('/v1/vocab-items/review?direction=receptive')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      assert.deepEqual(
+        res.body.reviewCards.map((x: { targetText: string }) => x.targetText),
+        ['b', 'c', 'a'],
+      );
+    });
+
+    it('caps reviewCards at limit but reports full dueCounts', async function () {
+      const { user, token } = await createUserWithToken();
+      for (let i = 0; i < 3; i += 1) {
+        await createVocabItem({ userId: user.id, targetText: `word-${i}` });
+      }
+
+      const res = await request(app)
+        .get('/v1/vocab-items/review?direction=receptive&limit=2')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      assert.equal(res.body.reviewCards.length, 2);
+      assert.equal(res.body.dueCounts.receptive, 3);
+    });
+
+    it('returns 400 on an invalid direction', async function () {
+      const { token } = await createUserWithToken();
+
+      await request(app)
+        .get('/v1/vocab-items/review?direction=bogus')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('returns 400 when limit exceeds the maximum', async function () {
+      const { token } = await createUserWithToken();
+
+      await request(app)
+        .get('/v1/vocab-items/review?limit=101')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('returns 400 on an unknown query parameter', async function () {
+      const { token } = await createUserWithToken();
+
+      await request(app)
+        .get('/v1/vocab-items/review?bogus=1')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+  });
+
+  describe('POST /v1/vocab-items/:vocabItemId/review', function () {
+    afterEach(() => tk.reset());
+
+    it('returns 401 without authentication', async function () {
+      const { user } = await createUserWithToken();
+      const item = await createVocabItem({ userId: user.id });
+
+      await request(app)
+        .post(`/v1/vocab-items/${item.id}/review`)
+        .send({ direction: 'receptive', outcome: 'correct' })
+        .expect(401);
+    });
+
+    it('grades one track, reschedules it, and leaves the other untouched', async function () {
+      const { user, token } = await createUserWithToken();
+      const item = await createVocabItem({ userId: user.id });
+      tk.freeze(new Date('2026-01-26T10:00:00.000Z'));
+
+      const res = await request(app)
+        .post(`/v1/vocab-items/${item.id}/review`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ direction: 'receptive', outcome: 'correct' })
+        .expect(200);
+
+      assert.equal(res.body.receptive.familiarity, 1);
+      assert.equal(res.body.receptive.timesSeen, 1);
+      assert.equal(res.body.receptive.timesCorrect, 1);
+      assert.equal(res.body.receptive.timesIncorrect, 0);
+      assert.equal(res.body.receptive.lastOutcome, 'correct');
+      assert.equal(
+        new Date(res.body.receptive.nextDueAt).getTime(),
+        new Date('2026-01-27T10:00:00.000Z').getTime(),
+      );
+      // Productive track untouched.
+      assert.equal(res.body.productive.familiarity, 0);
+      assert.equal(res.body.productive.timesSeen, 0);
+      assert.equal(res.body.productive.lastOutcome, null);
+      assert.equal(res.body.productive.nextDueAt, null);
+    });
+
+    it('returns 400 on an invalid outcome', async function () {
+      const { user, token } = await createUserWithToken();
+      const item = await createVocabItem({ userId: user.id });
+
+      await request(app)
+        .post(`/v1/vocab-items/${item.id}/review`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ direction: 'receptive', outcome: 'bogus' })
+        .expect(400);
+    });
+
+    it('returns 400 on an invalid direction (any is not a track)', async function () {
+      const { user, token } = await createUserWithToken();
+      const item = await createVocabItem({ userId: user.id });
+
+      await request(app)
+        .post(`/v1/vocab-items/${item.id}/review`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ direction: 'any', outcome: 'correct' })
+        .expect(400);
+    });
+
+    it('returns 400 when direction or outcome is missing', async function () {
+      const { user, token } = await createUserWithToken();
+      const item = await createVocabItem({ userId: user.id });
+
+      await request(app)
+        .post(`/v1/vocab-items/${item.id}/review`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ direction: 'receptive' })
+        .expect(400);
+    });
+
+    it('returns 400 on a malformed id', async function () {
+      const { token } = await createUserWithToken();
+
+      await request(app)
+        .post('/v1/vocab-items/not-a-uuid/review')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ direction: 'receptive', outcome: 'correct' })
+        .expect(400);
+    });
+
+    it("returns 404 and does not mutate another user's item", async function () {
+      const { token } = await createUserWithToken();
+      const other = await createUserWithToken();
+      const item = await createVocabItem({ userId: other.user.id });
+
+      await request(app)
+        .post(`/v1/vocab-items/${item.id}/review`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ direction: 'receptive', outcome: 'correct' })
+        .expect(404);
+
+      await item.reload();
+      assert.equal(item.receptiveTimesSeen, 0);
+    });
+
+    it('returns 404 for a nonexistent item', async function () {
+      const { token } = await createUserWithToken();
+
+      await request(app)
+        .post('/v1/vocab-items/00000000-0000-0000-0000-000000000000/review')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ direction: 'receptive', outcome: 'correct' })
+        .expect(404);
     });
   });
 });

@@ -3,6 +3,7 @@ import AuthPage from '../Pages/AuthPage/AuthPage';
 import DashboardPage from '../Pages/DashboardPage/DashboardPage';
 import LandingPage from '../Pages/LandingPage/LandingPage';
 import LegalPage from '../Pages/LegalPage/LegalPage';
+import TranslatePage from '../Pages/TranslatePage/TranslatePage';
 import ProtectedRoute from './ProtectedRoute';
 
 export const routeChildren: RouteObject[] = [
@@ -16,6 +17,14 @@ export const routeChildren: RouteObject[] = [
     element: (
       <ProtectedRoute>
         <DashboardPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'translate',
+    element: (
+      <ProtectedRoute>
+        <TranslatePage />
       </ProtectedRoute>
     ),
   },

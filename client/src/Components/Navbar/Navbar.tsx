@@ -13,6 +13,7 @@ export default function Navbar() {
         {isAuthenticated ? (
           <>
             <Link to="/dashboard">Dashboard</Link>
+            <Link to="/translate">Translate</Link>
             <span className="navbar-user">{user?.displayName || user?.email}</span>
             <button onClick={logout} className="navbar-logout">
               Log Out

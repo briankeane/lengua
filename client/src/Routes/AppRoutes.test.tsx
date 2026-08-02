@@ -31,4 +31,9 @@ describe('routing', () => {
     await renderAt('/login');
     expect(screen.getByRole('button', { name: /continue with google/i })).toBeInTheDocument();
   });
+
+  it('redirects to login when visiting /translate unauthenticated', async () => {
+    await renderAt('/translate');
+    expect(screen.getByRole('button', { name: /continue with google/i })).toBeInTheDocument();
+  });
 });

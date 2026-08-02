@@ -1,0 +1,49 @@
+paths:
+  /v1/translate:
+    post:
+      tags:
+        - Translate
+      summary: Translate text between English and Spanish
+      description: Translates text using DeepL. Blank input is returned as empty text without calling DeepL.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - text
+                - direction
+              properties:
+                text:
+                  type: string
+                  maxLength: 5000
+                  example: hello
+                direction:
+                  type: string
+                  enum: [en-es, es-en]
+                  example: en-es
+      responses:
+        '200':
+          description: The translated text
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  text:
+                    type: string
+                    example: hola
+                  direction:
+                    type: string
+                    enum: [en-es, es-en]
+        '400':
+          description: Missing, invalid, or unsupported request body fields
+        '401':
+          description: Authentication required
+        '429':
+          description: Translation provider rate limit exceeded
+        '502':
+          description: Translation provider error

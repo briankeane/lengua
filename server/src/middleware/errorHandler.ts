@@ -6,7 +6,9 @@ import {
   ConflictError,
   NotFoundError,
   PermissionError,
+  RateLimitError,
   ServerError,
+  UpstreamError,
   ValidationError,
 } from '../utils/errors';
 
@@ -50,6 +52,10 @@ export function errorHandler(
     statusCode = 409;
   } else if (error instanceof ServerError) {
     statusCode = 500;
+  } else if (error instanceof RateLimitError) {
+    statusCode = 429;
+  } else if (error instanceof UpstreamError) {
+    statusCode = 502;
   } else if (error instanceof AppError) {
     statusCode = 400;
   }

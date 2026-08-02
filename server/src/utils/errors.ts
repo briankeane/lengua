@@ -21,6 +21,10 @@ export class ValidationError extends AppError {}
 
 export class ConflictError extends AppError {}
 
+export class RateLimitError extends AppError {}
+
+export class UpstreamError extends AppError {}
+
 export class ServerError extends AppError {
   constructor(message = 'An unexpected error occurred', data?: unknown) {
     super(message, data);

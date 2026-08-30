@@ -56,4 +56,17 @@ describe('buildTutorPrompt', function () {
     });
     assert.equal(promptVersion, PROMPT_VERSION);
   });
+
+  it('rejects unsupported target languages', function () {
+    assert.throws(
+      () =>
+        buildTutorPrompt({
+          mode: 'quiz',
+          targetLanguage: 'fr',
+          vocab,
+          speech: { slower: false },
+        }),
+      /Unsupported target language/,
+    );
+  });
 });

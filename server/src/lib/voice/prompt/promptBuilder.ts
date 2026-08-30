@@ -5,6 +5,12 @@ import { SessionVocabItem, VocabItem } from '../types';
 
 export const PROMPT_VERSION = 'voice-prompt-v1';
 
+// v1 is Spanish-only. The core rules, language policy, greeting, and both mode
+// fragments are written for Spanish, so anything other than 'es' is rejected at
+// this boundary rather than silently producing a mismatched prompt.
+export const SUPPORTED_LANGUAGES = ['es'] as const;
+export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
+
 interface BuildTutorPromptInput {
   mode: VoiceMode;
   targetLanguage: string;
@@ -34,6 +40,12 @@ function languagePolicy(): string {
 }
 
 export function buildTutorPrompt(input: BuildTutorPromptInput): BuildTutorPromptResult {
+  if (!SUPPORTED_LANGUAGES.includes(input.targetLanguage as SupportedLanguage)) {
+    throw new Error(
+      `Unsupported target language: ${input.targetLanguage}. Only Spanish ('es') is supported in v1.`,
+    );
+  }
+
   const sessionVocab: SessionVocabItem[] = input.vocab.map((v) => ({
     ...v,
     bucket: bucketFor(v.familiarity),

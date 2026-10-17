@@ -3,6 +3,7 @@ import * as sinon from 'sinon';
 import request from 'supertest';
 import * as bcrypt from 'bcrypt';
 import { LoginTicket, OAuth2Client, TokenPayload } from 'google-auth-library';
+import * as appleSignIn from 'apple-signin-auth';
 import { UniqueConstraintError } from 'sequelize';
 import app from '../../server';
 import User from '../../db/models/user.model';
@@ -72,6 +73,18 @@ describe('Auth API', function () {
       const res = await request(app).post('/v1/auth/signup').send({ email: 'test@example.com' });
 
       assert.equal(res.status, 400);
+    });
+
+    it('rejects signups using the reserved Apple placeholder domain', async function () {
+      const res = await request(app).post('/v1/auth/signup').send({
+        email: 'apple-somesub@lengua.placeholder',
+        password: 'password123',
+        firstName: 'Squatter',
+      });
+
+      assert.equal(res.status, 400);
+      const user = await User.findOne({ where: { email: 'apple-somesub@lengua.placeholder' } });
+      assert.isNull(user);
     });
   });
 
@@ -268,6 +281,223 @@ describe('Auth API', function () {
 
     it('returns 400 if idToken is missing', async function () {
       const res = await request(app).post('/v1/auth/google').send({});
+
+      assert.equal(res.status, 400);
+    });
+  });
+
+  describe('POST /v1/auth/apple', function () {
+    const originalAppleClientId = config.APPLE_CLIENT_ID;
+
+    beforeEach(function () {
+      config.APPLE_CLIENT_ID = 'fm.lengua.app';
+    });
+
+    afterEach(function () {
+      config.APPLE_CLIENT_ID = originalAppleClientId;
+      sinon.restore();
+    });
+
+    type AppleIdTokenType = Awaited<ReturnType<typeof appleSignIn.verifyIdToken>>;
+
+    function applePayload(overrides: Partial<AppleIdTokenType> = {}): AppleIdTokenType {
+      return {
+        iss: 'https://appleid.apple.com',
+        aud: 'fm.lengua.app',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        iat: Math.floor(Date.now() / 1000),
+        sub: 'apple-user-id-123',
+        email: 'apple@example.com',
+        email_verified: true,
+        ...overrides,
+      } as AppleIdTokenType;
+    }
+
+    function stubApple(payload: AppleIdTokenType) {
+      sinon.stub(appleSignIn, 'verifyIdToken').resolves(payload);
+    }
+
+    it('creates a new user from an identity token and stores appleId', async function () {
+      stubApple(applePayload());
+
+      const res = await request(app)
+        .post('/v1/auth/apple')
+        .send({ identityToken: 'valid-id-token', firstName: 'Apple', lastName: 'User' });
+
+      assert.equal(res.status, 200);
+      assert.exists(res.body.token);
+      assert.equal(res.body.user.email, 'apple@example.com');
+      assert.equal(res.body.user.firstName, 'Apple');
+      assert.equal(res.body.user.lastName, 'User');
+
+      const user = await User.findOne({ where: { email: 'apple@example.com' } });
+      assert.equal(user?.appleId, 'apple-user-id-123');
+      assert.equal(user?.verifiedEmail, 'apple@example.com');
+    });
+
+    it('falls back to the email localpart when no name is supplied', async function () {
+      stubApple(applePayload());
+
+      const res = await request(app)
+        .post('/v1/auth/apple')
+        .send({ identityToken: 'valid-id-token' });
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.user.firstName, 'apple');
+      assert.equal(res.body.user.lastName, '');
+    });
+
+    it('falls back to the email localpart when the name is an empty string', async function () {
+      stubApple(applePayload());
+
+      const res = await request(app)
+        .post('/v1/auth/apple')
+        .send({ identityToken: 'valid-id-token', firstName: '', lastName: '  ' });
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.user.firstName, 'apple');
+      assert.equal(res.body.user.lastName, '');
+    });
+
+    it('uses a placeholder email when the token omits one', async function () {
+      stubApple(applePayload({ email: undefined }));
+
+      const res = await request(app)
+        .post('/v1/auth/apple')
+        .send({ identityToken: 'valid-id-token', firstName: 'Apple' });
+
+      assert.equal(res.status, 200);
+      const user = await User.findOne({ where: { appleId: 'apple-user-id-123' } });
+      assert.equal(user?.email, 'apple-apple-user-id-123@lengua.placeholder');
+    });
+
+    it('trusts a verified email supplied as the string "true"', async function () {
+      stubApple(applePayload({ email_verified: 'true' as unknown as boolean }));
+
+      const res = await request(app)
+        .post('/v1/auth/apple')
+        .send({ identityToken: 'valid-id-token', firstName: 'Apple' });
+
+      assert.equal(res.status, 200);
+      const user = await User.findOne({ where: { appleId: 'apple-user-id-123' } });
+      assert.equal(user?.email, 'apple@example.com');
+      assert.equal(user?.verifiedEmail, 'apple@example.com');
+    });
+
+    it('does not link to an existing account on an unverified email', async function () {
+      await User.create({ email: 'apple@example.com', firstName: 'Existing' });
+
+      stubApple(applePayload({ email_verified: false }));
+
+      const res = await request(app)
+        .post('/v1/auth/apple')
+        .send({ identityToken: 'valid-id-token', firstName: 'Apple' });
+
+      assert.equal(res.status, 200);
+      // The pre-existing account must NOT be hijacked: appleId stays empty and a
+      // separate placeholder-email account is created for the Apple subject.
+      const existing = await User.findOne({ where: { email: 'apple@example.com' } });
+      assert.isNotOk(existing?.appleId);
+      const appleUser = await User.findOne({ where: { appleId: 'apple-user-id-123' } });
+      assert.equal(appleUser?.email, 'apple-apple-user-id-123@lengua.placeholder');
+      assert.isNotOk(appleUser?.verifiedEmail);
+    });
+
+    it('matches an existing user by appleId (sub)', async function () {
+      await User.create({
+        email: 'old@example.com',
+        firstName: 'Old',
+        appleId: 'apple-user-id-123',
+      });
+
+      stubApple(applePayload({ email: 'new-address@example.com' }));
+
+      const res = await request(app)
+        .post('/v1/auth/apple')
+        .send({ identityToken: 'valid-id-token' });
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.user.email, 'old@example.com');
+      const count = await User.count();
+      assert.equal(count, 1);
+    });
+
+    it('backfills appleId on an existing email-matched user', async function () {
+      await User.create({ email: 'apple@example.com', firstName: 'Existing' });
+
+      stubApple(applePayload());
+
+      const res = await request(app)
+        .post('/v1/auth/apple')
+        .send({ identityToken: 'valid-id-token' });
+
+      assert.equal(res.status, 200);
+      const user = await User.findOne({ where: { email: 'apple@example.com' } });
+      assert.equal(user?.appleId, 'apple-user-id-123');
+      const count = await User.count();
+      assert.equal(count, 1);
+    });
+
+    it('links appleId when recovering from a create race', async function () {
+      const raced = await User.create({ email: 'race@example.com', firstName: 'Race' });
+
+      const findOne = sinon.stub(User, 'findOne');
+      findOne.onCall(0).resolves(null); // by appleId, pre-create
+      findOne.onCall(1).resolves(null); // by email, pre-create
+      findOne.onCall(2).resolves(null); // recovery by appleId
+      findOne.onCall(3).resolves(raced); // recovery by email
+      sinon.stub(User, 'create').rejects(new UniqueConstraintError({}));
+
+      stubApple(applePayload({ email: 'race@example.com', sub: 'race-sub' }));
+
+      const res = await request(app)
+        .post('/v1/auth/apple')
+        .send({ identityToken: 'valid-id-token' });
+
+      assert.equal(res.status, 200);
+      findOne.restore();
+      await raced.reload();
+      assert.equal(raced.appleId, 'race-sub');
+    });
+
+    it('rejects when the email is already linked to a different Apple account', async function () {
+      await User.create({
+        email: 'taken@example.com',
+        firstName: 'Taken',
+        appleId: 'sub-existing',
+      });
+
+      stubApple(applePayload({ email: 'taken@example.com', sub: 'sub-different' }));
+
+      const res = await request(app)
+        .post('/v1/auth/apple')
+        .send({ identityToken: 'valid-id-token' });
+
+      assert.equal(res.status, 401);
+      const user = await User.findOne({ where: { email: 'taken@example.com' } });
+      assert.equal(user?.appleId, 'sub-existing');
+    });
+
+    it('returns 401 when identity token verification fails', async function () {
+      sinon.stub(appleSignIn, 'verifyIdToken').rejects(new Error('invalid token'));
+
+      const res = await request(app).post('/v1/auth/apple').send({ identityToken: 'bad-id-token' });
+
+      assert.equal(res.status, 401);
+    });
+
+    it('returns 400 if APPLE_CLIENT_ID is not set', async function () {
+      config.APPLE_CLIENT_ID = undefined;
+
+      const res = await request(app)
+        .post('/v1/auth/apple')
+        .send({ identityToken: 'valid-id-token' });
+
+      assert.equal(res.status, 400);
+    });
+
+    it('returns 400 if identityToken is missing', async function () {
+      const res = await request(app).post('/v1/auth/apple').send({});
 
       assert.equal(res.status, 400);
     });

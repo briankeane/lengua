@@ -1,4 +1,5 @@
 import * as bcrypt from 'bcrypt';
+import * as appleSignIn from 'apple-signin-auth';
 import { OAuth2Client, type TokenPayload } from 'google-auth-library';
 import { UniqueConstraintError } from 'sequelize';
 import config from '../../config/config';
@@ -7,6 +8,15 @@ import { AuthenticationError, ConflictError, ValidationError } from '../../utils
 import { generateToken } from '../../utils/jwt';
 
 const SALT_ROUNDS = 10;
+
+// Reserved domain for synthetic emails minted when Apple withholds one. Kept
+// off-limits to user-supplied emails so a placeholder row can only ever be one
+// we created (which always carries the matching appleId).
+const APPLE_PLACEHOLDER_EMAIL_DOMAIN = 'lengua.placeholder';
+
+function isReservedPlaceholderEmail(email: string): boolean {
+  return email.toLowerCase().endsWith(`@${APPLE_PLACEHOLDER_EMAIL_DOMAIN}`);
+}
 
 export async function signup({
   email,
@@ -19,6 +29,10 @@ export async function signup({
   firstName: string;
   lastName?: string;
 }): Promise<{ user: User; token: string }> {
+  if (isReservedPlaceholderEmail(email)) {
+    throw new ValidationError('Invalid email address');
+  }
+
   const existing = await User.findOne({ where: { email } });
   if (existing) {
     throw new ConflictError('A user with this email already exists');
@@ -136,6 +150,126 @@ async function upsertGoogleUser(payload: TokenPayload): Promise<User> {
           googleId: sub,
           verifiedEmail: existing.verifiedEmail ?? email,
           profileImageUrl: existing.profileImageUrl ?? payload.picture,
+        });
+        return existing;
+      }
+    }
+    throw err;
+  }
+}
+
+export async function appleSignInWithIdentityToken({
+  identityToken,
+  firstName,
+  lastName,
+}: {
+  identityToken: string;
+  firstName?: string;
+  lastName?: string;
+}): Promise<{ user: User; token: string }> {
+  if (!config.APPLE_CLIENT_ID) {
+    throw new ValidationError('Apple sign-in is not configured');
+  }
+
+  let appleUserId: string;
+  let email: string | undefined;
+  try {
+    const payload = await appleSignIn.verifyIdToken(identityToken, {
+      audience: config.APPLE_CLIENT_ID,
+    });
+    appleUserId = payload.sub;
+    // Only trust the email for account matching/verifiedEmail when Apple says it
+    // is verified. Apple returns email_verified as a boolean or the string
+    // "true"; an unverified claim must never link an Apple subject to an
+    // existing email account. Unverified emails fall through to the placeholder.
+    if (payload.email && isAppleEmailVerified(payload.email_verified)) {
+      email = payload.email;
+    }
+  } catch {
+    throw new AuthenticationError('Apple authentication failed');
+  }
+
+  if (!appleUserId) {
+    throw new AuthenticationError('Apple authentication failed');
+  }
+
+  const user = await upsertAppleUser({
+    appleUserId,
+    email,
+    // Treat empty/whitespace client-supplied names as absent so the
+    // email-localpart fallback applies instead of storing a blank firstName.
+    firstName: firstName?.trim() ? firstName : undefined,
+    lastName: lastName?.trim() ? lastName : undefined,
+  });
+  const token = await generateToken(user);
+  return { user, token };
+}
+
+// Apple sends email_verified as a boolean true or the string "true".
+function isAppleEmailVerified(emailVerified: unknown): boolean {
+  return emailVerified === true || emailVerified === 'true';
+}
+
+async function upsertAppleUser({
+  appleUserId,
+  email,
+  firstName,
+  lastName,
+}: {
+  appleUserId: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+}): Promise<User> {
+  const bySub = await User.findOne({ where: { appleId: appleUserId } });
+  if (bySub) {
+    return bySub;
+  }
+
+  // `email` is only set when Apple verified it, so email-based matching/linking
+  // is always safe here. When absent, we synthesize a stable placeholder to
+  // satisfy the NOT NULL/unique email column and never match on it — a
+  // synthetic address must not link an Apple subject to a pre-existing row.
+  if (email) {
+    const byEmail = await User.findOne({ where: { email } });
+    if (byEmail) {
+      if (byEmail.appleId && byEmail.appleId !== appleUserId) {
+        throw new AuthenticationError('This email is already linked to a different Apple account');
+      }
+      await byEmail.update({
+        appleId: appleUserId,
+        verifiedEmail: byEmail.verifiedEmail ?? email,
+      });
+      return byEmail;
+    }
+  }
+
+  const resolvedEmail = email ?? `apple-${appleUserId}@${APPLE_PLACEHOLDER_EMAIL_DOMAIN}`;
+
+  try {
+    return await User.create({
+      appleId: appleUserId,
+      email: resolvedEmail,
+      firstName: firstName ?? resolvedEmail.split('@')[0],
+      lastName: lastName ?? '',
+      verifiedEmail: email,
+    });
+  } catch (err) {
+    // Concurrent first sign-in for the same sub/email can lose the create race;
+    // the winner already made the row, so re-fetch it deterministically.
+    if (err instanceof UniqueConstraintError) {
+      const existing =
+        (await User.findOne({ where: { appleId: appleUserId } })) ??
+        (email ? await User.findOne({ where: { email } }) : null);
+      if (existing) {
+        if (existing.appleId && existing.appleId !== appleUserId) {
+          throw new AuthenticationError(
+            'This email is already linked to a different Apple account',
+          );
+        }
+        await existing.update({
+          appleId: appleUserId,
+          verifiedEmail: existing.verifiedEmail ?? email,
         });
         return existing;
       }

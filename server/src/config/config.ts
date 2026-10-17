@@ -32,6 +32,8 @@ export class Config implements Partial<EnvVars> {
   _GOOGLE_CLIENT_SECRET?: string;
   GOOGLE_IOS_CLIENT_ID?: string;
   _GOOGLE_IOS_CLIENT_ID?: string;
+  APPLE_CLIENT_ID?: string;
+  _APPLE_CLIENT_ID?: string;
   ELEVENLABS_API_KEY?: string;
   _ELEVENLABS_API_KEY?: string;
   ELEVENLABS_CONVAI_AGENT_ID?: string;

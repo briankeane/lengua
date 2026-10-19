@@ -3,8 +3,8 @@ import { buildTutorPrompt, PROMPT_VERSION } from './promptBuilder';
 import { VocabItem } from '../types';
 
 const vocab: VocabItem[] = [
-  { id: '1', sourceText: 'the dog', term: 'el perro', itemType: 'word', familiarity: 0 },
-  { id: '2', sourceText: 'to run', term: 'correr', itemType: 'word', familiarity: 5 },
+  { id: '1', sourceText: 'the dog', targetText: 'el perro', familiarity: 0 },
+  { id: '2', sourceText: 'to run', targetText: 'correr', familiarity: 8 },
 ];
 
 describe('buildTutorPrompt', function () {
@@ -16,7 +16,7 @@ describe('buildTutorPrompt', function () {
       speech: { slower: false },
     });
     assert.match(prompt, /Spanish/i);
-    vocab.forEach((v) => assert.include(prompt, v.term));
+    vocab.forEach((v) => assert.include(prompt, v.targetText));
   });
 
   it('derives and exposes buckets on sessionVocab', function () {

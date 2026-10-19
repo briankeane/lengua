@@ -1,18 +1,14 @@
 import User from '../db/models/user.model';
-import VocabItem from '../db/models/vocabItem.model';
+import { saveVocabItem } from '../lib/vocabItem';
 
-const SEED: Array<{ sourceText: string; term: string; itemType: 'word' | 'phrase' }> = [
-  { sourceText: 'the dog', term: 'el perro', itemType: 'word' },
-  { sourceText: 'to run', term: 'correr', itemType: 'word' },
-  { sourceText: 'the house', term: 'la casa', itemType: 'word' },
-  { sourceText: 'to eat', term: 'comer', itemType: 'word' },
-  { sourceText: 'where is the bathroom?', term: '¿dónde está el baño?', itemType: 'phrase' },
-  { sourceText: 'good morning', term: 'buenos días', itemType: 'phrase' },
+const SEED: Array<{ sourceText: string; targetText: string }> = [
+  { sourceText: 'the dog', targetText: 'el perro' },
+  { sourceText: 'to run', targetText: 'correr' },
+  { sourceText: 'the house', targetText: 'la casa' },
+  { sourceText: 'to eat', targetText: 'comer' },
+  { sourceText: 'where is the bathroom?', targetText: '¿dónde está el baño?' },
+  { sourceText: 'good morning', targetText: 'buenos días' },
 ];
-
-function normalize(term: string): string {
-  return term.trim().toLowerCase();
-}
 
 async function main(): Promise<void> {
   if (process.env.NODE_ENV === 'production') {
@@ -33,17 +29,13 @@ async function main(): Promise<void> {
 
   let created = 0;
   for (const s of SEED) {
-    const [, wasCreated] = await VocabItem.findOrCreate({
-      where: { userId: user.id, targetLanguageCode: 'es', termNormalized: normalize(s.term) },
-      defaults: {
-        userId: user.id,
-        targetLanguageCode: 'es',
-        sourceText: s.sourceText,
-        term: s.term,
-        termNormalized: normalize(s.term),
-        itemType: s.itemType,
-        translationSource: 'ai',
-      },
+    // saveVocabItem is idempotent per (user, language, normalized target text):
+    // a repeat run returns the existing row with created=false.
+    const { created: wasCreated } = await saveVocabItem({
+      userId: user.id,
+      targetLanguageCode: 'es',
+      sourceText: s.sourceText,
+      targetText: s.targetText,
     });
     if (wasCreated) created += 1;
   }

@@ -6,11 +6,12 @@ import {
 } from '../types';
 
 function renderWordList(vocab: SessionVocabItem[]): string {
-  return vocab.map((v) => `- "${v.term}" (${v.sourceText}) [${v.itemType}]`).join('\n');
+  return vocab.map((v) => `- "${v.targetText}" (${v.sourceText})`).join('\n');
 }
 
 export const weaveMode: VoiceModeDefinition = {
   mode: 'weave',
+  reviewDirection: 'receptive',
   expectedObservationTypes: ['contextual_use'],
 
   buildTutorInstructions({ vocab, speech }: ModeInstructionInput): string {

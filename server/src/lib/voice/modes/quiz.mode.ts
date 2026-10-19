@@ -6,13 +6,12 @@ import {
 } from '../types';
 
 function renderWordList(vocab: SessionVocabItem[]): string {
-  return vocab
-    .map((v) => `- "${v.term}" (${v.sourceText}) [${v.itemType}, level: ${v.bucket}]`)
-    .join('\n');
+  return vocab.map((v) => `- "${v.targetText}" (${v.sourceText}) [level: ${v.bucket}]`).join('\n');
 }
 
 export const quizMode: VoiceModeDefinition = {
   mode: 'quiz',
+  reviewDirection: 'productive',
   expectedObservationTypes: ['describe_to_name', 'name_to_define'],
 
   buildTutorInstructions({ vocab, speech }: ModeInstructionInput): string {

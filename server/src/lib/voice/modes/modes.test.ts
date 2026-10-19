@@ -6,25 +6,22 @@ const vocab: SessionVocabItem[] = [
   {
     id: '1',
     sourceText: 'the dog',
-    term: 'el perro',
-    itemType: 'word',
+    targetText: 'el perro',
     familiarity: 0,
     bucket: 'new',
   },
   {
     id: '2',
     sourceText: 'to run',
-    term: 'correr',
-    itemType: 'word',
-    familiarity: 3,
+    targetText: 'correr',
+    familiarity: 4,
     bucket: 'learning',
   },
   {
     id: '3',
     sourceText: 'where is the bathroom?',
-    term: '¿dónde está el baño?',
-    itemType: 'phrase',
-    familiarity: 5,
+    targetText: '¿dónde está el baño?',
+    familiarity: 8,
     bucket: 'known',
   },
 ];
@@ -40,6 +37,10 @@ describe('Voice modes', function () {
     it('throws on unknown mode', function () {
       assert.throws(() => getModeDefinition('nope' as 'quiz'));
     });
+    it('maps each mode to the review track it exercises', function () {
+      assert.equal(quizMode.reviewDirection, 'productive');
+      assert.equal(weaveMode.reviewDirection, 'receptive');
+    });
   });
 
   describe('quiz tutor instructions', function () {
@@ -49,7 +50,7 @@ describe('Voice modes', function () {
       speech: { slower: false },
     });
     it('includes every target term', function () {
-      vocab.forEach((v) => assert.include(text, v.term));
+      vocab.forEach((v) => assert.include(text, v.targetText));
     });
     it('describes per-bucket behavior', function () {
       assert.match(text, /new/i);
@@ -74,7 +75,7 @@ describe('Voice modes', function () {
         speech: { slower: true },
       });
       assert.match(text, /conversation/i);
-      vocab.forEach((v) => assert.include(text, v.term));
+      vocab.forEach((v) => assert.include(text, v.targetText));
     });
   });
 });

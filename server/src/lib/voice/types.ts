@@ -6,17 +6,22 @@ export type FamiliarityBucket = 'new' | 'learning' | 'known';
 // The seam object the prompt builder consumes (NOT the Sequelize instance). PR4
 // selects words via the SRS queue (getReviewQueue) and maps each ReviewCard into
 // this shape; `familiarity` is the value of whichever track the mode exercises.
-export interface VocabItem {
+//
+// Declared as a `type` (not `interface`) so it is structurally assignable to the
+// session model's recursive `JsonValue`: PR4 snapshots `sessionVocab` onto
+// `ConversationSession.vocabSnapshot`, and a TS interface lacks the implicit
+// index signature that assignment requires.
+export type VocabItem = {
   id: string;
   sourceText: string; // English the learner typed
   targetText: string; // target-language phrase — the learning object
   familiarity: number; // 0-8, for the mode's review track (see VoiceModeDefinition.reviewDirection)
-}
+};
 
 // A vocab item with its derived bucket, as snapshotted onto the session.
-export interface SessionVocabItem extends VocabItem {
+export type SessionVocabItem = VocabItem & {
   bucket: FamiliarityBucket;
-}
+};
 
 export interface ModeInstructionInput {
   targetLanguage: string;

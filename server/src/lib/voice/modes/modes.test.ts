@@ -78,4 +78,12 @@ describe('Voice modes', function () {
       vocab.forEach((v) => assert.include(text, v.targetText));
     });
   });
+
+  describe('weave evaluation rubric', function () {
+    const rubric = weaveMode.buildEvaluationRubric({ targetLanguage: 'es', vocab });
+    it('classifies an unanswered mention as not_observed rather than a guess', function () {
+      assert.match(rubric, /not_observed/);
+      assert.match(rubric, /no evidence|no response/i);
+    });
+  });
 });

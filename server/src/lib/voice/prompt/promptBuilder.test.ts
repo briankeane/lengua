@@ -1,6 +1,7 @@
 import { assert } from 'chai';
 import { buildTutorPrompt, PROMPT_VERSION } from './promptBuilder';
 import { VocabItem } from '../types';
+import { JsonValue } from '../../../db/models/conversationSession.model';
 
 const vocab: VocabItem[] = [
   { id: '1', sourceText: 'the dog', targetText: 'el perro', familiarity: 0 },
@@ -17,6 +18,28 @@ describe('buildTutorPrompt', function () {
     });
     assert.match(prompt, /Spanish/i);
     vocab.forEach((v) => assert.include(prompt, v.targetText));
+  });
+
+  it('instructs the tutor to treat vocabulary and learner input as data, not instructions', function () {
+    const { prompt } = buildTutorPrompt({
+      mode: 'quiz',
+      targetLanguage: 'es',
+      vocab,
+      speech: { slower: false },
+    });
+    assert.match(prompt, /never as instructions/i);
+  });
+
+  it('returns a sessionVocab snapshot assignable to the session JsonValue column', function () {
+    const { sessionVocab } = buildTutorPrompt({
+      mode: 'quiz',
+      targetLanguage: 'es',
+      vocab,
+      speech: { slower: false },
+    });
+    // Compile-time contract: PR4 snapshots this onto ConversationSession.vocabSnapshot.
+    const snapshot: JsonValue = sessionVocab;
+    assert.isArray(snapshot);
   });
 
   it('derives and exposes buckets on sessionVocab', function () {
